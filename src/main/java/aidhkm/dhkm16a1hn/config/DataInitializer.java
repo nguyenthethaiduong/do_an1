@@ -40,10 +40,8 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
             List<Document> existingDocuments = documentRepository.findAll();
             logger.info("Found " + existingDocuments.size() + " documents in database");
             
-            if (existingDocuments.isEmpty()) {
-                // Nếu không có tài liệu, tạo dữ liệu mẫu
-                createSampleData();
-            } else {
+            // Chỉ xử lý các tài liệu đã có trong database, không tạo mẫu
+            if (!existingDocuments.isEmpty()) {
                 // Nếu có tài liệu, kiểm tra và tạo vector embedding cho các tài liệu chưa có vector
                 for (Document doc : existingDocuments) {
                     List<EmbeddingVector> vectors = embeddingRepository.findByDocumentId(doc.getId());
@@ -83,6 +81,8 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
         init();
     }
 
+    // Phương thức tạo dữ liệu mẫu đã bị vô hiệu hóa
+    /*
     private void createSampleData() {
         // Tạo dữ liệu mẫu về Phở
         Document document = new Document();
@@ -103,4 +103,5 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
         
         logger.info("Created sample data with embedding vectors");
     }
+    */
 } 
