@@ -4,3 +4,4 @@
 *.class
 *.iml
 .idea/
+/src/main/resources/service-account.json
