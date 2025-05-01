@@ -146,8 +146,8 @@ public class VertexAIService {
             logger.info("Sử dụng Project ID: " + projectId + " cho các API calls");
         } catch (Exception e) {
             logger.severe("Lỗi khi khởi tạo xác thực OAuth2: " + e.getMessage());
-            logger.severe("Hãy đảm bảo tệp service-account.json hợp lệ và có quyền truy cập Vertex AI API");
-            logger.severe("Vui lòng kiểm tra biến môi trường GOOGLE_APPLICATION_CREDENTIALS hoặc file service-account.json");
+            logger.severe("Hãy đảm bảo biến môi trường GOOGLE_CREDENTIALS_JSON hợp lệ hoặc tệp service-account.json có quyền truy cập Vertex AI API");
+            logger.severe("Vui lòng kiểm tra biến môi trường GOOGLE_CREDENTIALS_JSON, GOOGLE_APPLICATION_CREDENTIALS hoặc file service-account.json");
         }
     }
     
@@ -158,6 +158,18 @@ public class VertexAIService {
         logger.info("Đang khởi tạo GoogleCredentials thủ công...");
         
         try {
+            // Thử tải từ biến môi trường GOOGLE_CREDENTIALS_JSON
+            String googleCredentialsJson = System.getenv("GOOGLE_CREDENTIALS_JSON");
+            if (googleCredentialsJson != null && !googleCredentialsJson.isEmpty()) {
+                logger.info("Đang tải Google credentials từ biến môi trường GOOGLE_CREDENTIALS_JSON");
+                try (InputStream is = new ByteArrayInputStream(googleCredentialsJson.getBytes(StandardCharsets.UTF_8))) {
+                    List<String> scopes = Arrays.asList("https://www.googleapis.com/auth/cloud-platform");
+                    this.googleCredentials = ServiceAccountCredentials.fromStream(is)
+                        .createScoped(scopes);
+                    return;
+                }
+            }
+            
             // Thử tải từ classpath resources
             InputStream serviceAccountStream = getClass().getClassLoader().getResourceAsStream("service-account.json");
             if (serviceAccountStream != null) {

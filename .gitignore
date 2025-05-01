@@ -5,3 +5,4 @@
 *.iml
 .idea/
 /src/main/resources/service-account.json
+/src/main/resources/application.properties

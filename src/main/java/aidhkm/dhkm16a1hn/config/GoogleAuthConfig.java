@@ -9,6 +9,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -43,7 +44,35 @@ public class GoogleAuthConfig {
     @Bean
     public GoogleCredentials googleCredentials() {
         try {
-            // Thử tải từ classpath resources
+            // Kiểm tra biến môi trường GOOGLE_CREDENTIALS_JSON
+            String googleCredentialsJson = System.getenv("GOOGLE_CREDENTIALS_JSON");
+            if (googleCredentialsJson != null && !googleCredentialsJson.isEmpty()) {
+                // Đọc credentials từ biến môi trường
+                try (InputStream is = new ByteArrayInputStream(googleCredentialsJson.getBytes(StandardCharsets.UTF_8))) {
+                    logger.info("Đang tải Google credentials từ biến môi trường GOOGLE_CREDENTIALS_JSON");
+                    GoogleCredentials credentials = ServiceAccountCredentials.fromStream(is)
+                        .createScoped(VERTEX_AI_SCOPES);
+                    
+                    if (credentials instanceof ServiceAccountCredentials) {
+                        ServiceAccountCredentials serviceCredentials = (ServiceAccountCredentials) credentials;
+                        logger.info("✅ Đã tải GoogleCredentials thành công từ service account: " + serviceCredentials.getClientEmail());
+                        logger.info("✅ Project ID từ service account: " + serviceCredentials.getProjectId());
+                        
+                        // Kiểm tra project ID
+                        String projectId = serviceCredentials.getProjectId();
+                        if (projectId != null && !projectId.equals(configuredProjectId)) {
+                            logger.warning("⚠️ CẢNH BÁO: Project ID trong service account (" + projectId + ") khác với project ID đã cấu hình (" + configuredProjectId + ")");
+                            logger.warning("⚠️ Điều này có thể gây lỗi xác thực khi gọi API Vertex AI");
+                        }
+                    } else {
+                        logger.info("✅ Đã tải GoogleCredentials thành công (không phải là ServiceAccountCredentials)");
+                    }
+                    
+                    return credentials;
+                }
+            }
+            
+            // Nếu không có biến môi trường, thử tải từ classpath resources
             Resource resource = new ClassPathResource(serviceAccountFile);
             if (resource.exists()) {
                 // Đọc file JSON để lấy project_id
