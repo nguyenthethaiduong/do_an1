@@ -82,7 +82,7 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
     public void onApplicationEvent(ContextRefreshedEvent event) {
         init();
     }
-
+/*
     private void createSampleData() {
         // Tạo dữ liệu mẫu về Phở
         Document document = new Document();
@@ -103,4 +103,5 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
         
         logger.info("Created sample data with embedding vectors");
     }
+*/
 } 
