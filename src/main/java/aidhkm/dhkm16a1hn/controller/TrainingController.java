@@ -20,6 +20,7 @@ import aidhkm.dhkm16a1hn.service.NLPService;
 import aidhkm.dhkm16a1hn.service.VectorService;
 import aidhkm.dhkm16a1hn.repository.EmbeddingRepository;
 import aidhkm.dhkm16a1hn.repository.DocumentRepository;
+import aidhkm.dhkm16a1hn.service.ChatService;
 
 @Controller
 @RequestMapping("/training")
@@ -41,6 +42,9 @@ public class TrainingController {
 
     @Autowired
     private DocumentRepository documentRepository;
+
+    @Autowired
+    private ChatService chatService;
 
     // Hiển thị trang upload/training
     @GetMapping
@@ -106,8 +110,13 @@ public class TrainingController {
         Map<String, Object> response = new HashMap<>();
         try {
             trainingService.deleteDocument(id);
+            
+            // Xóa cache để đảm bảo không còn câu trả lời cũ
+            vectorService.clearAllCaches();
+            chatService.clearResponseCache();
+            
             response.put("success", true);
-            response.put("message", "Tài liệu đã được xóa thành công");
+            response.put("message", "Tài liệu đã được xóa thành công và cache đã được xóa");
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Lỗi khi xóa tài liệu: " + e.getMessage());
@@ -198,6 +207,32 @@ public class TrainingController {
             e.printStackTrace();
             
             model.addAttribute("error", "Lỗi khi tạo mẫu tài liệu: " + e.getMessage());
+            model.addAttribute("documents", documentRepository.findAll());
+            
+            return "documents";
+        }
+    }
+
+    /**
+     * Xóa cache câu trả lời để lấy đáp án mới từ dữ liệu hiện tại
+     */
+    @GetMapping("/clear-response-cache")
+    public String clearResponseCache(Model model) {
+        try {
+            chatService.clearResponseCache();
+            
+            String message = "Đã xóa cache câu trả lời thành công.";
+            model.addAttribute("message", message);
+            model.addAttribute("documents", documentRepository.findAll());
+            
+            logger.info(message);
+            
+            return "documents";
+        } catch (Exception e) {
+            logger.severe("Lỗi khi xóa cache câu trả lời: " + e.getMessage());
+            e.printStackTrace();
+            
+            model.addAttribute("error", "Lỗi khi xóa cache câu trả lời: " + e.getMessage());
             model.addAttribute("documents", documentRepository.findAll());
             
             return "documents";

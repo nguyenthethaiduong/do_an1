@@ -1051,4 +1051,13 @@ public class ChatService {
 
         return prompt.toString();
     }
+
+    /**
+     * Xóa cache câu trả lời
+     */
+    public void clearResponseCache() {
+        int cacheSize = responseCache.size();
+        responseCache.clear();
+        log.info("Đã xóa {} câu trả lời khỏi cache", cacheSize);
+    }
 }
