@@ -80,7 +80,7 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
     public void onApplicationEvent(ContextRefreshedEvent event) {
         init();
     }
-<<<<<<< HEAD
+
 
     // Phương thức tạo dữ liệu mẫu đã bị vô hiệu hóa
     /*
@@ -110,7 +110,3 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
 <<<<<<< HEAD
     */
 } 
-=======
-*/
-} 
->>>>>>> bbe59393a93acad2315df0ab03d012d503c10eda
