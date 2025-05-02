@@ -440,7 +440,7 @@
         </div>
         
         <div class="chat-input-container">
-            <form id="chat-form" method="post" action="/chat" class="h-100">
+            <form id="chat-form" method="post" action="/chat/ask" class="h-100">
                 <div class="chat-input-wrapper">
                     <textarea 
                         id="message" 
@@ -517,11 +517,109 @@
                     
                     // Nếu có nội dung thì submit form
                     if (this.value.trim() !== '') {
-                        chatForm.dispatchEvent(new Event('submit'));
+                        sendMessage();
                     }
                 }
                 // Nếu nhấn Shift+Enter thì cho phép xuống dòng mới
             });
+            
+            // Xử lý submit form
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault(); // Ngăn form submit
+                sendMessage();
+            });
+            
+            // Hàm gửi tin nhắn
+            function sendMessage() {
+                const question = messageInput.value.trim();
+                if (!question) return;
+                
+                // Thêm tin nhắn người dùng vào giao diện
+                addMessage(question, true);
+                
+                // Xóa nội dung input
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+                
+                // Hiển thị đang typing
+                const typingIndicator = addTypingIndicator();
+                
+                // Gửi request đến API
+                fetch('/chat/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ question: question })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Lỗi kết nối: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Xóa typing indicator
+                    typingIndicator.remove();
+                    
+                    // Hiển thị câu trả lời
+                    addMessage(data.answer);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    typingIndicator.remove();
+                    addMessage('Xin lỗi, có lỗi xảy ra: ' + error.message);
+                });
+            }
+            
+            // Hàm thêm tin nhắn vào giao diện
+            function addMessage(content, isUser = false) {
+                // Ẩn welcome screen nếu đang hiển thị
+                if (welcomeScreen) {
+                    welcomeScreen.style.display = 'none';
+                }
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.textContent = content;
+                
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = new Date().toLocaleTimeString();
+                
+                messageDiv.appendChild(messageContent);
+                messageDiv.appendChild(timeDiv);
+                chatMessages.appendChild(messageDiv);
+                
+                // Cuộn xuống dưới cùng
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Hàm thêm typing indicator
+            function addTypingIndicator() {
+                const indicator = document.createElement('div');
+                indicator.className = 'message ai-message';
+                indicator.style.padding = '1rem';
+                
+                const indicatorContent = document.createElement('div');
+                indicatorContent.className = 'typing-indicator';
+                indicatorContent.innerHTML = `
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                `;
+                
+                indicator.appendChild(indicatorContent);
+                chatMessages.appendChild(indicator);
+                
+                // Cuộn xuống dưới cùng
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                return indicator;
+            }
         });
     </script>
 </body>
