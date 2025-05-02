@@ -400,10 +400,10 @@
                     <i class="fas fa-bars"></i>
                 </button>
                 <div class="nav-links" id="navLinks">
-                    <a href="/documents" th:class="${#httpServletRequest.requestURI == '/documents'} ? 'active'">
+                    <a href="/training/documents" th:class="${#httpServletRequest.requestURI == '/training/documents'} ? 'active'">
                         <i class="fas fa-folder me-2"></i>Documents
                     </a>
-                    <a href="/upload" th:class="${#httpServletRequest.requestURI == '/upload'} ? 'active'">
+                    <a href="/training" th:class="${#httpServletRequest.requestURI == '/training'} ? 'active'">
                         <i class="fas fa-cloud-upload-alt me-2"></i>Upload
                     </a>
                     <a href="/chat" th:class="${#httpServletRequest.requestURI == '/chat'} ? 'active'">
