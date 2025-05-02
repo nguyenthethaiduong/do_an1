@@ -6,53 +6,63 @@
     <title>Tải tài liệu lên</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #4361ee;
-            --secondary-color: #3f37c9;
-            --accent-color: #4cc9f0;
-            --success-color: #06d6a0;
-            --warning-color: #ffd166;
-            --danger-color: #ef476f;
-            --light-bg: #f8f9fa;
-            --dark-text: #212529;
-            --gray-text: #6c757d;
-            --border-radius: 8px;
-            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            --transition: all 0.3s ease;
+            --primary-color: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --secondary-color: #0ea5e9;
+            --secondary-light: #38bdf8;
+            --accent-color: #14b8a6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --light-bg: #f9fafb;
+            --card-bg: #ffffff;
+            --dark-text: #1e293b;
+            --gray-text: #64748b;
+            --border-radius: 16px;
+            --box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 8px 15px -6px rgba(0, 0, 0, 0.03);
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--light-bg);
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f9fafb 0%, #f0f4f8 100%);
             padding-top: 30px;
             color: var(--dark-text);
+            line-height: 1.6;
         }
         
         .upload-container {
-            background-color: #fff;
+            background-color: var(--card-bg);
             border-radius: var(--border-radius);
             box-shadow: var(--box-shadow);
             padding: 30px;
             margin-bottom: 30px;
             transition: var(--transition);
+            border: 1px solid rgba(0, 0, 0, 0.03);
         }
         
         .upload-container:hover {
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.15), 0 10px 15px -5px rgba(0, 0, 0, 0.08);
+            transform: translateY(-5px);
         }
         
         .upload-header {
             margin-bottom: 25px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
             padding-bottom: 15px;
         }
         
         .upload-header .display-6 {
-            color: var(--primary-color);
             font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #0ea5e9 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
         
         .file-input-container {
@@ -74,17 +84,17 @@
         .file-input-label {
             display: block;
             padding: 40px 20px;
-            border: 2px dashed #ddd;
+            border: 2px dashed #d4d4d8;
             border-radius: var(--border-radius);
             text-align: center;
             cursor: pointer;
             transition: var(--transition);
-            background-color: rgba(67, 97, 238, 0.05);
+            background-color: rgba(99, 102, 241, 0.05);
         }
         
         .file-input-label:hover {
             border-color: var(--primary-color);
-            background-color: rgba(67, 97, 238, 0.1);
+            background-color: rgba(99, 102, 241, 0.1);
             transform: translateY(-5px);
         }
         
@@ -102,7 +112,7 @@
         .selected-file {
             margin-top: 10px;
             padding: 12px;
-            background-color: rgba(67, 97, 238, 0.1);
+            background-color: rgba(99, 102, 241, 0.1);
             border-left: 4px solid var(--primary-color);
             border-radius: 0 var(--border-radius) var(--border-radius) 0;
             display: none;
@@ -118,664 +128,447 @@
         
         .form-section {
             margin-bottom: 20px;
-        }
-        
-        .nav-pills {
-            gap: 10px;
-        }
-        
-        .nav-pills .nav-link {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.03), rgba(14, 165, 233, 0.03));
             border-radius: var(--border-radius);
-            padding: 12px 20px;
-            font-weight: 500;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
             transition: var(--transition);
-            border: 1px solid rgba(0,0,0,0.05);
-            background-color: white;
         }
         
-        .nav-pills .nav-link:hover {
-            background-color: rgba(67, 97, 238, 0.1);
+        .form-section:hover {
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            transform: translateY(-3px);
         }
         
-        .nav-pills .nav-link.active {
-            background-color: var(--primary-color);
-            box-shadow: 0 4px 8px rgba(67, 97, 238, 0.3);
-            transform: translateY(-2px);
-        }
-        
-        .tab-content {
-            padding-top: 20px;
-        }
-        
-        .progress {
-            height: 20px;
-            margin-top: 15px;
-            margin-bottom: 15px;
-            display: none;
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            background-color: rgba(67, 97, 238, 0.1);
-        }
-        
-        .progress-bar {
-            background-color: var(--primary-color);
-        }
-        
-        .processing-status {
-            display: none;
-            margin-top: 15px;
-            padding: 20px;
-            border-radius: var(--border-radius);
-            background-color: #fff;
-            box-shadow: var(--box-shadow);
-            animation: fadeIn 0.5s ease;
-        }
-        
-        .status-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-        
-        .status-item:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-        
-        .status-icon {
-            margin-right: 15px;
-            font-size: 1.5rem;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-        }
-        
-        .success-icon {
-            color: white;
-            background-color: var(--success-color);
-        }
-        
-        .pending-icon {
-            color: white;
-            background-color: var(--warning-color);
-        }
-        
-        .processing-icon {
-            color: white;
-            background-color: var(--accent-color);
-        }
-        
-        .error-icon {
-            color: white;
-            background-color: var(--danger-color);
-        }
-        
-        .status-text {
-            flex-grow: 1;
-            font-weight: 500;
-        }
-        
-        .animated-ellipsis::after {
-            content: '';
-            animation: ellipsis 1.5s infinite;
-        }
-        
-        @keyframes ellipsis {
-            0% { content: '.'; }
-            33% { content: '..'; }
-            66% { content: '...'; }
-            100% { content: '.'; }
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .feature-item {
-            padding: 20px;
-            border-radius: var(--border-radius);
-            background-color: white;
+        .form-section h5 {
+            color: var(--primary-color);
+            font-weight: 600;
             margin-bottom: 20px;
-            box-shadow: var(--box-shadow);
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .checkbox-container {
+            text-align: center;
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(14, 165, 233, 0.1));
+            border-radius: var(--border-radius);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            position: relative;
+            overflow: hidden;
             transition: var(--transition);
-            border-left: 4px solid var(--primary-color);
+            border: 2px dashed rgba(99, 102, 241, 0.3);
         }
         
-        .feature-item:hover {
+        .checkbox-container:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
         }
         
-        .feature-icon {
-            font-size: 2.5rem;
+        .checkbox-container:after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
+            z-index: -1;
+        }
+
+        .checkbox-label {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 0;
+        }
+        
+        .checkbox-icon {
+            font-size: 3rem;
             margin-bottom: 15px;
             color: var(--primary-color);
             transition: var(--transition);
+            animation: pulse 2s infinite;
         }
         
-        .feature-item:hover .feature-icon {
-            transform: scale(1.1);
+        .checkbox-container:hover .checkbox-icon {
+            transform: scale(1.2);
         }
         
-        .btn {
-            border-radius: var(--border-radius);
-            font-weight: 500;
-            padding: 8px 16px;
-            transition: var(--transition);
+        .checkbox-hint {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--gray-text);
+            margin-top: 10px;
+            font-weight: 400;
         }
         
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
+        .big-checkbox {
+            transform: scale(2);
+            margin-bottom: 20px;
+            accent-color: var(--primary-color);
+            cursor: pointer;
         }
         
-        .btn-primary:hover {
-            background-color: var(--secondary-color);
-            border-color: var(--secondary-color);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(67, 97, 238, 0.3);
-        }
-        
-        .btn-success {
-            background-color: var(--success-color);
-            border-color: var(--success-color);
-        }
-        
-        .btn-success:hover {
-            background-color: #05b589;
-            border-color: #05b589;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(6, 214, 160, 0.3);
-        }
-        
-        .btn-info {
-            background-color: var(--accent-color);
-            border-color: var(--accent-color);
+        .upload-success {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(16, 185, 129, 0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            animation: fadeIn 0.5s ease;
             color: white;
+            backdrop-filter: blur(5px);
         }
         
-        .btn-info:hover {
-            background-color: #3ab6dd;
-            border-color: #3ab6dd;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(76, 201, 240, 0.3);
+        .upload-success i {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: bounceIn 1s;
         }
         
-        .form-control, .form-select {
-            border-radius: var(--border-radius);
-            padding: 10px 15px;
-            border: 1px solid rgba(0,0,0,0.1);
-            transition: var(--transition);
+        .upload-success h2 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 700;
         }
         
-        .form-control:focus, .form-select:focus {
-            box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
-            border-color: var(--primary-color);
+        .upload-success p {
+            font-size: 1.25rem;
+            margin-bottom: 30px;
+            max-width: 600px;
+            text-align: center;
         }
         
-        /* Responsive design improvements */
-        @media (max-width: 768px) {
-            body {
-                padding-top: 15px;
+        /* Hidden sections */
+        .hidden-section {
+            display: none;
+        }
+        
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
             }
-            .upload-container {
-                padding: 15px;
-                margin-bottom: 15px;
+            100% {
+                opacity: 1;
+                transform: translateY(0);
             }
-            .upload-header .d-flex {
-                flex-direction: column;
-                align-items: flex-start;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
             }
-            .upload-header .ms-auto {
-                margin-top: 15px;
-                margin-left: 0 !important;
-                display: flex;
-                flex-direction: column;
-                width: 100%;
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
             }
-            .upload-header .ms-auto a {
-                margin-bottom: 10px;
-                width: 100%;
-                text-align: center;
+            100% {
+                transform: scale(1);
+                opacity: 1;
             }
-            .file-input-label {
-                padding: 20px 10px;
+        }
+        
+        @keyframes bounceIn {
+            0%, 20%, 40%, 60%, 80%, 100% {
+                transition-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
             }
-            .file-input-icon {
-                font-size: 32px;
-                margin-bottom: 10px;
+            0% {
+                opacity: 0;
+                transform: scale3d(.3, .3, .3);
             }
-            .nav-pills {
-                flex-direction: column;
+            20% {
+                transform: scale3d(1.1, 1.1, 1.1);
             }
-            .nav-pills .nav-item {
-                margin-bottom: 5px;
+            40% {
+                transform: scale3d(.9, .9, .9);
             }
-            .nav-pills .nav-link {
-                width: 100%;
-                text-align: center;
+            60% {
+                opacity: 1;
+                transform: scale3d(1.03, 1.03, 1.03);
+            }
+            80% {
+                transform: scale3d(.97, .97, .97);
+            }
+            100% {
+                opacity: 1;
+                transform: scale3d(1, 1, 1);
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="upload-container" data-aos="fade-up">
-            <div class="upload-header">
-                <div class="d-flex align-items-center">
-                    <h1 class="display-6 fw-bold text-primary mb-0">
-                        <i class="fas fa-cloud-upload-alt me-2"></i>Tải tài liệu lên
-                    </h1>
-                    <div class="ms-auto">
-                        <a href="/chat" class="btn btn-success me-2">
-                            <i class="fas fa-comments me-2"></i>Quay lại Chat
-                        </a>
-                        <a href="/documents" class="btn btn-info">
-                            <i class="fas fa-file-alt me-2"></i>Quản lý tài liệu
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="upload-container" data-aos="fade-up">
+                    <div class="upload-header d-flex justify-content-between align-items-center">
+                        <h1 class="display-6"><i class="fas fa-cloud-upload-alt me-3"></i>Tải tài liệu lên</h1>
+                        <a href="/documents" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Quay lại
                         </a>
                     </div>
-                </div>
-            </div>
-            
-            <ul class="nav nav-pills nav-justified mb-4" id="uploadTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="file-tab" data-bs-toggle="tab" data-bs-target="#fileUpload" type="button" role="tab" aria-controls="fileUpload" aria-selected="true">
-                        <i class="fas fa-file-upload me-2"></i>Tải lên tập tin
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="text-tab" data-bs-toggle="tab" data-bs-target="#textUpload" type="button" role="tab" aria-controls="textUpload" aria-selected="false">
-                        <i class="fas fa-font me-2"></i>Soạn văn bản
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="url-tab" data-bs-toggle="tab" data-bs-target="#urlUpload" type="button" role="tab" aria-controls="urlUpload" aria-selected="false">
-                        <i class="fas fa-link me-2"></i>Nhập URL
-                    </button>
-                </li>
-            </ul>
-            
-            <div class="tab-content" id="uploadTabsContent">
-                <!-- Tab tải lên tập tin -->
-                <div class="tab-pane fade show active" id="fileUpload" role="tabpanel" aria-labelledby="file-tab">
-                    <div class="card border-0 shadow-sm" data-aos="fade-up" data-aos-delay="100">
-                        <div class="card-body p-4">
-                            <form id="uploadForm" th:action="@{/upload}" method="post" enctype="multipart/form-data">
-                                <div class="file-input-container">
-                                    <input type="file" id="fileInput" name="file" accept=".pdf,.docx,.doc,.txt,.rtf,.csv,.xlsx,.xls,.pptx,.ppt,.jpg,.jpeg,.png" onchange="showFileName()" />
-                                    <label for="fileInput" class="file-input-label">
-                                        <div class="file-input-icon">
-                                            <i class="fas fa-cloud-upload-alt"></i>
+                    
+                    <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <!-- Simplified Upload Process -->
+                        <div class="file-input-container">
+                            <input type="file" id="documentFile" name="file" required accept=".pdf,.doc,.docx,.txt,.rtf,.xlsx,.xls,.ppt,.pptx,.csv">
+                            <label for="documentFile" class="file-input-label">
+                                <i class="fas fa-file-upload file-input-icon"></i>
+                                <span class="h5">Kéo tài liệu vào đây hoặc nhấp để chọn</span>
+                                <small class="text-muted d-block mt-2">Hỗ trợ PDF, Word, Excel, PowerPoint, TXT</small>
+                            </label>
+                            <div id="selectedFile" class="selected-file">
+                                <i class="fas fa-file-alt me-2"></i>
+                                <span id="fileName">Chưa chọn tệp</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Prominent Checkbox -->
+                        <div class="checkbox-container">
+                            <label for="autoProcess" class="checkbox-label">
+                                <i class="fas fa-magic checkbox-icon"></i>
+                                <input type="checkbox" id="autoProcess" name="autoProcess" class="big-checkbox" checked>
+                                Nhấp vào đây để tải lên!
+                                <span class="checkbox-hint">Tự động xử lý tài liệu ngay khi tải lên</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Hidden advanced options -->
+                        <div class="accordion mt-4 hidden-section" id="advancedOptions">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOptions">
+                                        <i class="fas fa-cogs me-2"></i> Tùy chọn nâng cao
+                                    </button>
+                                </h2>
+                                <div id="collapseOptions" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                    <div class="accordion-body">
+                                        <div class="form-section">
+                                            <h5><i class="fas fa-tags me-2"></i> Phân loại tài liệu</h5>
+                                            <div class="mb-3">
+                                                <label for="documentTitle" class="form-label">Tiêu đề tài liệu</label>
+                                                <input type="text" class="form-control" id="documentTitle" name="title" placeholder="Nhập tiêu đề tài liệu">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="documentType" class="form-label">Loại tài liệu</label>
+                                                <select class="form-select" id="documentType" name="documentType">
+                                                    <option value="GENERAL">Tài liệu chung</option>
+                                                    <option value="REPORT">Báo cáo</option>
+                                                    <option value="CONTRACT">Hợp đồng</option>
+                                                    <option value="INVOICE">Hóa đơn</option>
+                                                    <option value="LEGAL">Tài liệu pháp lý</option>
+                                                    <option value="TECHNICAL">Tài liệu kỹ thuật</option>
+                                                    <option value="FINANCIAL">Tài liệu tài chính</option>
+                                                    <option value="RESEARCH">Nghiên cứu</option>
+                                                    <option value="OTHER">Khác</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="documentTags" class="form-label">Thẻ (phân cách bằng dấu phẩy)</label>
+                                                <input type="text" class="form-control" id="documentTags" name="tags" placeholder="Ví dụ: quan trọng, dự án A, 2023">
+                                            </div>
                                         </div>
-                                        <h5 class="mb-2">Kéo thả hoặc nhấp để chọn tập tin</h5>
-                                        <p class="text-muted mb-0">Hỗ trợ các định dạng: PDF, Word, Excel, PowerPoint, Text, Images</p>
-                                    </label>
-                                </div>
-                                
-                                <div id="selectedFile" class="selected-file mb-4">
-                                    <i class="fas fa-file me-2"></i>
-                                    <span id="fileName">Chưa có tập tin nào được chọn</span>
-                                    <button type="button" class="btn btn-sm btn-link text-danger ms-auto" onclick="clearFile()">
-                                        <i class="fas fa-times-circle"></i>
-                                    </button>
-                                </div>
-                                
-                                <div class="form-section bg-light p-4 rounded-3 mb-4" data-aos="fade-up" data-aos-delay="200">
-                                    <h5 class="mb-3">Thông tin tài liệu</h5>
-                                    
-                                    <div class="mb-3">
-                                        <label for="title" class="form-label">Tiêu đề tài liệu <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" id="title" name="title" required>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label for="category" class="form-label">Phân loại</label>
-                                        <select class="form-select" id="category" name="category">
-                                            <option value="">Chọn phân loại</option>
-                                            <option value="TAI_LIEU">Tài liệu chung</option>
-                                            <option value="BAO_CAO">Báo cáo</option>
-                                            <option value="HOP_DONG">Hợp đồng</option>
-                                            <option value="VAN_BAN">Văn bản hành chính</option>
-                                            <option value="KHAC">Khác</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label for="description" class="form-label">Mô tả ngắn</label>
-                                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                                    </div>
-                                    
-                                    <div class="form-check form-switch mb-0">
-                                        <input class="form-check-input" type="checkbox" id="isPublic" name="isPublic" checked>
-                                        <label class="form-check-label" for="isPublic">Công khai tài liệu (tất cả người dùng có thể xem)</label>
+                                        
+                                        <div class="form-section">
+                                            <h5><i class="fas fa-sliders-h me-2"></i> Cài đặt xử lý</h5>
+                                            <div class="mb-3">
+                                                <label class="form-label d-block">Chế độ xử lý</label>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="processingMode" id="modeStandard" value="STANDARD" checked>
+                                                    <label class="form-check-label" for="modeStandard">Tiêu chuẩn</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="processingMode" id="modeDetailed" value="DETAILED">
+                                                    <label class="form-check-label" for="modeDetailed">Chi tiết</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="processingMode" id="modeFast" value="FAST">
+                                                    <label class="form-check-label" for="modeFast">Nhanh</label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" id="extractMetadata" name="extractMetadata" checked>
+                                                    <label class="form-check-label" for="extractMetadata">Trích xuất metadata</label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" id="generateSummary" name="generateSummary" checked>
+                                                    <label class="form-check-label" for="generateSummary">Tạo tóm tắt tự động</label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" id="detectLanguage" name="detectLanguage" checked>
+                                                    <label class="form-check-label" for="detectLanguage">Nhận diện ngôn ngữ</label>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                
-                                <div class="progress">
-                                    <div id="uploadProgress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                                
-                                <div id="processingStatus" class="processing-status">
-                                    <h5 class="mb-3">Tiến trình xử lý</h5>
-                                    <div class="status-item">
-                                        <span class="status-icon pending-icon">
-                                            <i class="fas fa-hourglass-half"></i>
-                                        </span>
-                                        <span class="status-text">Đang tải tệp lên<span class="animated-ellipsis"></span></span>
-                                    </div>
-                                    <div id="processingText" class="status-item d-none">
-                                        <span class="status-icon processing-icon">
-                                            <i class="fas fa-cogs"></i>
-                                        </span>
-                                        <span class="status-text">Đang xử lý văn bản<span class="animated-ellipsis"></span></span>
-                                    </div>
-                                    <div id="indexingText" class="status-item d-none">
-                                        <span class="status-icon processing-icon">
-                                            <i class="fas fa-search"></i>
-                                        </span>
-                                        <span class="status-text">Đang lập chỉ mục tìm kiếm<span class="animated-ellipsis"></span></span>
-                                    </div>
-                                    <div id="completeText" class="status-item d-none">
-                                        <span class="status-icon success-icon">
-                                            <i class="fas fa-check"></i>
-                                        </span>
-                                        <span class="status-text">Hoàn tất</span>
-                                    </div>
-                                </div>
-                                
-                                <div class="text-end mt-4">
-                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
-                                        <i class="bi bi-x-circle me-1"></i>Hủy bỏ
-                                    </button>
-                                    <button type="submit" id="uploadBtn" class="btn btn-primary">
-                                        <i class="bi bi-cloud-arrow-up me-1"></i>Tải lên
-                                    </button>
-                                </div>
-                            </form>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg px-5 py-3">
+                                <i class="fas fa-cloud-upload-alt me-2"></i>Tải lên ngay
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="progress mt-4" id="uploadProgress">
+                        <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    
+                    <div class="processing-status" id="processingStatus">
+                        <h5 class="mb-3"><i class="fas fa-cogs me-2"></i>Đang xử lý tài liệu...</h5>
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-3 text-primary"><i class="fas fa-file-alt"></i></div>
+                            <div>
+                                <strong>Trích xuất văn bản</strong>
+                                <div class="small text-muted">Đang đọc nội dung tài liệu...</div>
+                            </div>
+                            <div class="ms-auto"><i class="fas fa-check-circle text-success"></i></div>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-3 text-primary"><i class="fas fa-brain"></i></div>
+                            <div>
+                                <strong>Phân tích nội dung</strong>
+                                <div class="small text-muted">Đang xử lý thông tin...</div>
+                            </div>
+                            <div class="ms-auto"><i class="fas fa-circle-notch fa-spin text-primary"></i></div>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="me-3 text-primary"><i class="fas fa-project-diagram"></i></div>
+                            <div>
+                                <strong>Tạo vector nhúng</strong>
+                                <div class="small text-muted">Đang chuẩn bị cho AI...</div>
+                            </div>
+                            <div class="ms-auto"><i class="fas fa-circle-notch fa-spin text-primary"></i></div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-3 text-primary"><i class="fas fa-database"></i></div>
+                            <div>
+                                <strong>Lưu trữ dữ liệu</strong>
+                                <div class="small text-muted">Đang lưu vào cơ sở dữ liệu...</div>
+                            </div>
+                            <div class="ms-auto"><i class="fas fa-hourglass-half text-warning"></i></div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Tab soạn văn bản -->
-                <div class="tab-pane fade" id="textUpload" role="tabpanel" aria-labelledby="text-tab">
-                    <div class="card border-0 shadow-sm" data-aos="fade-up" data-aos-delay="100">
-                        <div class="card-body p-4">
-                            <form id="textForm" th:action="@{/upload/text}" method="post">
-                                <div class="mb-3">
-                                    <label for="textTitle" class="form-label">Tiêu đề tài liệu <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="textTitle" name="title" required>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="textCategory" class="form-label">Phân loại</label>
-                                    <select class="form-select" id="textCategory" name="category">
-                                        <option value="">Chọn phân loại</option>
-                                        <option value="TAI_LIEU">Tài liệu chung</option>
-                                        <option value="BAO_CAO">Báo cáo</option>
-                                        <option value="HOP_DONG">Hợp đồng</option>
-                                        <option value="VAN_BAN">Văn bản hành chính</option>
-                                        <option value="KHAC">Khác</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="content" class="form-label">Nội dung <span class="text-danger">*</span></label>
-                                    <textarea class="form-control" id="content" name="content" rows="12" required></textarea>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="textDescription" class="form-label">Mô tả ngắn</label>
-                                    <textarea class="form-control" id="textDescription" name="description" rows="3"></textarea>
-                                </div>
-                                
-                                <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" id="textIsPublic" name="isPublic" checked>
-                                    <label class="form-check-label" for="textIsPublic">Công khai tài liệu (tất cả người dùng có thể xem)</label>
-                                </div>
-                                
-                                <div class="text-end mt-4">
-                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetTextForm()">
-                                        <i class="bi bi-x-circle me-1"></i>Hủy bỏ
-                                    </button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-save me-1"></i>Lưu tài liệu
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Tab URL -->
-                <div class="tab-pane fade" id="urlUpload" role="tabpanel" aria-labelledby="url-tab">
-                    <div class="card border-0 shadow-sm" data-aos="fade-up" data-aos-delay="100">
-                        <div class="card-body p-4">
-                            <form id="urlForm" th:action="@{/upload/url}" method="post">
-                                <div class="mb-3">
-                                    <label for="url" class="form-label">URL của tài liệu <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
-                                        <input type="url" class="form-control" id="url" name="url" placeholder="https://example.com/document.pdf" required>
-                                    </div>
-                                    <div class="form-text">Nhập URL của trang web hoặc tài liệu để tải xuống và xử lý</div>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="urlTitle" class="form-label">Tiêu đề tài liệu <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="urlTitle" name="title" required>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="urlCategory" class="form-label">Phân loại</label>
-                                    <select class="form-select" id="urlCategory" name="category">
-                                        <option value="">Chọn phân loại</option>
-                                        <option value="TAI_LIEU">Tài liệu chung</option>
-                                        <option value="BAO_CAO">Báo cáo</option>
-                                        <option value="HOP_DONG">Hợp đồng</option>
-                                        <option value="VAN_BAN">Văn bản hành chính</option>
-                                        <option value="KHAC">Khác</option>
-                                    </select>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="urlDescription" class="form-label">Mô tả ngắn</label>
-                                    <textarea class="form-control" id="urlDescription" name="description" rows="3"></textarea>
-                                </div>
-                                
-                                <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" id="urlIsPublic" name="isPublic" checked>
-                                    <label class="form-check-label" for="urlIsPublic">Công khai tài liệu (tất cả người dùng có thể xem)</label>
-                                </div>
-                                
-                                <div class="text-end mt-4">
-                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="resetUrlForm()">
-                                        <i class="bi bi-x-circle me-1"></i>Hủy bỏ
-                                    </button>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-cloud-download me-1"></i>Tải xuống & Xử lý
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mt-4 mb-5">
-            <h3 class="text-center mb-4" data-aos="fade-up">Tính năng xử lý tài liệu</h3>
-            
-            <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="100">
-                <div class="feature-item">
-                    <div class="feature-icon">
-                        <i class="bi bi-file-earmark-text"></i>
-                    </div>
-                    <h4>Trích xuất văn bản</h4>
-                    <p>Hệ thống tự động trích xuất nội dung văn bản từ nhiều định dạng khác nhau như PDF, Word, Excel, PowerPoint.</p>
-                </div>
-            </div>
-            
-            <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="200">
-                <div class="feature-item">
-                    <div class="feature-icon">
-                        <i class="bi bi-search"></i>
-                    </div>
-                    <h4>Tìm kiếm thông minh</h4>
-                    <p>Tự động lập chỉ mục và phân tích văn bản, cho phép tìm kiếm ngữ nghĩa chính xác và hiệu quả.</p>
-                </div>
-            </div>
-            
-            <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="300">
-                <div class="feature-item">
-                    <div class="feature-icon">
-                        <i class="bi bi-chat-dots"></i>
-                    </div>
-                    <h4>Trò chuyện thông minh</h4>
-                    <p>Tương tác với nội dung tài liệu thông qua trò chuyện AI, giúp bạn tìm kiếm và tổng hợp thông tin nhanh chóng.</p>
                 </div>
             </div>
         </div>
     </div>
-
+    
+    <div class="upload-success" id="uploadSuccess">
+        <i class="fas fa-check-circle"></i>
+        <h2>Tải lên thành công!</h2>
+        <p>Tài liệu của bạn đã được tải lên và xử lý thành công. Giờ đây bạn có thể tương tác và truy vấn thông tin từ tài liệu này.</p>
+        <div class="d-flex gap-3">
+            <a href="/documents" class="btn btn-light btn-lg px-4">
+                <i class="fas fa-file-alt me-2"></i>Xem tài liệu
+            </a>
+            <a href="/chat" class="btn btn-light btn-lg px-4">
+                <i class="fas fa-comment-dots me-2"></i>Chat với AI
+            </a>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Khởi tạo AOS animation
+            // Initialize AOS
             AOS.init({
                 duration: 800,
-                easing: 'ease-in-out',
                 once: true
             });
             
-            // Xử lý form tải lên tập tin
-            document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            const documentFile = document.getElementById('documentFile');
+            const selectedFile = document.getElementById('selectedFile');
+            const fileName = document.getElementById('fileName');
+            const uploadForm = document.getElementById('uploadForm');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const processingStatus = document.getElementById('processingStatus');
+            const autoProcess = document.getElementById('autoProcess');
+            const uploadSuccess = document.getElementById('uploadSuccess');
+            
+            // Handle file selection
+            documentFile.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    selectedFile.style.display = 'block';
+                    fileName.textContent = this.files[0].name;
+                    
+                    // Auto submit if checkbox is checked
+                    if (autoProcess.checked) {
+                        uploadForm.submit();
+                    }
+                } else {
+                    selectedFile.style.display = 'none';
+                    fileName.textContent = 'Chưa chọn tệp';
+                }
+            });
+            
+            // Submit form when checkbox is clicked if file is already selected
+            autoProcess.addEventListener('click', function() {
+                if (this.checked && documentFile.files.length > 0) {
+                    uploadForm.submit();
+                }
+            });
+            
+            // Form submit handler
+            uploadForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                // Hiển thị trạng thái xử lý
-                document.getElementById('uploadBtn').disabled = true;
-                document.getElementById('uploadBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang xử lý...';
-                document.querySelector('.progress').style.display = 'flex';
-                document.getElementById('processingStatus').style.display = 'block';
+                if (documentFile.files.length === 0) {
+                    alert('Vui lòng chọn tệp để tải lên');
+                    return;
+                }
                 
-                // Giả lập tiến trình tải lên
-                simulateUpload();
+                // Show progress
+                uploadProgress.style.display = 'block';
                 
-                // Gửi form
-                this.submit();
-            });
-
-            // Thêm tính năng tự động gửi form khi thay đổi checkbox
-            document.getElementById('isPublic').addEventListener('change', function() {
-                document.getElementById('uploadBtn').click();
-            });
-
-            document.getElementById('textIsPublic').addEventListener('change', function() {
-                document.getElementById('textForm').submit();
-            });
-
-            document.getElementById('urlIsPublic').addEventListener('change', function() {
-                document.getElementById('urlForm').submit();
+                // Simulate upload progress
+                let progress = 0;
+                const progressBar = uploadProgress.querySelector('.progress-bar');
+                
+                const interval = setInterval(function() {
+                    progress += 5;
+                    progressBar.style.width = progress + '%';
+                    progressBar.setAttribute('aria-valuenow', progress);
+                    
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        // Show processing status
+                        processingStatus.style.display = 'block';
+                        
+                        // Simulate processing completion
+                        setTimeout(function() {
+                            // Show success message
+                            uploadSuccess.style.display = 'flex';
+                        }, 3000);
+                    }
+                }, 150);
+                
+                // In a real application, you would submit the form with AJAX and handle the response
+                // This is a simulation for demo purposes
             });
         });
-        
-        // Hiển thị tên file đã chọn
-        function showFileName() {
-            const fileInput = document.getElementById('fileInput');
-            const fileName = document.getElementById('fileName');
-            const selectedFile = document.getElementById('selectedFile');
-            
-            if (fileInput.files.length > 0) {
-                fileName.textContent = fileInput.files[0].name;
-                selectedFile.style.display = 'flex';
-                
-                // Tự động điền tiêu đề từ tên file
-                const title = document.getElementById('title');
-                if (!title.value) {
-                    let name = fileInput.files[0].name;
-                    // Loại bỏ phần mở rộng của file
-                    const lastDot = name.lastIndexOf('.');
-                    if (lastDot > 0) {
-                        name = name.substring(0, lastDot);
-                    }
-                    // Thay thế dấu gạch ngang và gạch dưới bằng khoảng trắng
-                    name = name.replace(/[_-]/g, ' ');
-                    // Viết hoa chữ cái đầu của mỗi từ
-                    name = name.replace(/\w\S*/g, function(txt) {
-                        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
-                    });
-                    title.value = name;
-                }
-            } else {
-                selectedFile.style.display = 'none';
-            }
-        }
-        
-        // Xóa file đã chọn
-        function clearFile() {
-            const fileInput = document.getElementById('fileInput');
-            fileInput.value = '';
-            document.getElementById('selectedFile').style.display = 'none';
-        }
-        
-        // Reset form
-        function resetForm() {
-            document.getElementById('uploadForm').reset();
-            clearFile();
-            document.getElementById('uploadProgress').style.width = '0%';
-            document.getElementById('uploadProgress').setAttribute('aria-valuenow', '0');
-            document.querySelector('.progress').style.display = 'none';
-            document.getElementById('processingStatus').style.display = 'none';
-            document.getElementById('processingText').classList.add('d-none');
-            document.getElementById('indexingText').classList.add('d-none');
-            document.getElementById('completeText').classList.add('d-none');
-            document.getElementById('uploadBtn').disabled = false;
-            document.getElementById('uploadBtn').innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i>Tải lên';
-        }
-        
-        function resetTextForm() {
-            document.getElementById('textForm').reset();
-        }
-        
-        function resetUrlForm() {
-            document.getElementById('urlForm').reset();
-        }
-        
-        // Giả lập quá trình tải lên
-        function simulateUpload() {
-            const progressBar = document.getElementById('uploadProgress');
-            let width = 0;
-            
-            const interval = setInterval(function() {
-                if (width >= 100) {
-                    clearInterval(interval);
-                    document.getElementById('processingText').classList.remove('d-none');
-                    
-                    setTimeout(function() {
-                        document.getElementById('indexingText').classList.remove('d-none');
-                        
-                        setTimeout(function() {
-                            document.getElementById('completeText').classList.remove('d-none');
-                        }, 2000);
-                        
-                    }, 2000);
-                    
-                } else {
-                    width += 1;
-                    progressBar.style.width = width + '%';
-                    progressBar.setAttribute('aria-valuenow', width);
-                }
-            }, 50);
-        }
     </script>
 </body>
 </html>
