@@ -398,7 +398,7 @@
         </div>
         
         <div class="chat-input-container">
-            <form id="chat-form" method="post" action="/chat" class="h-100">
+            <form id="chat-form" method="post" th:action="@{/chat/ask}" class="h-100">
                 <div class="chat-input-wrapper">
                     <textarea 
                         id="message" 
@@ -586,98 +586,6 @@
                 }
                 // Nếu nhấn Shift+Enter thì cho phép xuống dòng mới
             });
-            
-            // Xử lý gửi tin nhắn
-            chatForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const message = messageInput.value.trim();
-                
-                if (!message) return;
-                
-                // Ẩn welcome screen nếu đang hiển thị
-                welcomeScreen.style.display = 'none';
-                
-                // Thêm tin nhắn người dùng vào chat
-                addMessage(message, true);
-                
-                // Xóa nội dung input và reset chiều cao
-                messageInput.value = '';
-                messageInput.style.height = 'auto';
-                
-                // Hiển thị indicator đang gõ
-                const typingIndicator = addTypingIndicator();
-                
-                // Gửi form bằng fetch API
-                const formData = new FormData(chatForm);
-                
-                fetch(chatForm.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Lỗi kết nối: ' + response.status);
-                    }
-                    return response.text();
-                })
-                .then(data => {
-                    // Xóa indicator đang gõ
-                    typingIndicator.remove();
-                    
-                    // Thêm phản hồi từ AI
-                    addMessage(data);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    typingIndicator.remove();
-                    addMessage('Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.', false, true);
-                });
-            });
-            
-            // Thêm tin nhắn vào chat
-            function addMessage(text, isUser = false, isError = false) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = isUser ? 'message user-message' : 'message ai-message';
-                if (isError) {
-                    messageDiv.classList.add('error-message');
-                }
-                
-                const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                
-                messageDiv.innerHTML = `
-                    <div class="message-content">${text}</div>
-                    <div class="message-time">${currentTime}</div>
-                `;
-                
-                chatMessages.appendChild(messageDiv);
-                
-                // Cuộn xuống tin nhắn mới nhất
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                
-                return messageDiv;
-            }
-            
-            // Thêm indicator đang gõ
-            function addTypingIndicator() {
-                const typingDiv = document.createElement('div');
-                typingDiv.className = 'message ai-message';
-                typingDiv.innerHTML = `
-                    <div class="message-content">
-                        <div class="typing-indicator">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    </div>
-                `;
-                
-                chatMessages.appendChild(typingDiv);
-                
-                // Cuộn xuống để hiển thị indicator
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                
-                return typingDiv;
-            }
         });
     </script>
 </body>
