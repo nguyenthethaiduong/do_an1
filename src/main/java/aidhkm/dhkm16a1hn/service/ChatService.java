@@ -23,19 +23,19 @@ public class ChatService {
 
     @Autowired
     private QuestionRepository questionRepository;
-    
+
     @Autowired
     private EmbeddingRepository embeddingRepository;
-    
+
     @Autowired
     private ChatHistoryRepository chatHistoryRepository;
-    
+
     @Autowired
     private VertexAIService vertexAIService;
-    
+
     @Autowired
     private VectorService vectorService;
-    
+
     private static final int MAX_ANSWER_LENGTH = 4000;
     private static final int MAX_SIMILAR_SENTENCES = 10;
     private static final int MAX_CACHE_SIZE = 100;
@@ -82,28 +82,28 @@ public class ChatService {
     public String processQuestion(String question, Long documentId) {
         long startTime = System.currentTimeMillis();
         String normalizedQuestion = normalizeQuestion(question);
-        
+
         // Check for empty question
         if (normalizedQuestion.isEmpty()) {
             return "Vui lòng nhập câu hỏi.";
         }
-        
+
         log.debug("Processing question: {}", normalizedQuestion);
-        
+
         // Check for conversational responses first - fast path for simple interactions
         String conversationalResponse = getConversationalResponse(normalizedQuestion);
         if (conversationalResponse != null) {
             log.debug("Found conversational response for: {}", normalizedQuestion);
             return conversationalResponse;
         }
-        
+
         // Check cache for existing response
         String cachedResponse = responseCache.get(normalizedQuestion);
         if (cachedResponse != null) {
             log.debug("Cache hit for question: {}", normalizedQuestion);
             return cachedResponse;
         }
-        
+
         try {
             // Search for similar questions in database using CompletableFuture
             CompletableFuture<List<QuestionMatch>> similarQuestionsFuture = CompletableFuture.supplyAsync(() -> {
@@ -114,7 +114,7 @@ public class ChatService {
                     return Collections.emptyList();
                 }
             }, threadPool);
-            
+
             // Search for similar sentences in vector database asynchronously
             CompletableFuture<List<String>> similarSentencesFuture = CompletableFuture.supplyAsync(() -> {
                 try {
@@ -126,11 +126,11 @@ public class ChatService {
                     return Collections.emptyList();
                 }
             }, threadPool);
-            
+
             // Wait for both futures to complete
             List<QuestionMatch> similarQuestions = similarQuestionsFuture.get(5, TimeUnit.SECONDS);
             List<String> similarSentences = similarSentencesFuture.get(10, TimeUnit.SECONDS);
-            
+
             // Process results
             String answer = "";
             if (!similarQuestions.isEmpty()) {
@@ -142,7 +142,7 @@ public class ChatService {
                 // Use vector search results
                 log.debug("Found {} similar sentences, generating answer", similarSentences.size());
                 answer = generateAnswerFromSimilarSentences(normalizedQuestion, similarSentences);
-                
+
                 // Save question and answer for future reference
                 if (!answer.equals(NO_INFORMATION_MESSAGE) && documentId != null) {
                     saveQuestionAnswer(normalizedQuestion, answer, documentId);
@@ -150,29 +150,29 @@ public class ChatService {
             } else {
                 answer = NO_INFORMATION_MESSAGE;
             }
-            
+
             // Cache the response if it's not the default "no information" message
             if (!answer.equals(NO_INFORMATION_MESSAGE) && responseCache.size() < MAX_CACHE_SIZE) {
                 responseCache.put(normalizedQuestion, answer);
             }
-            
+
             // Maintain cache size
             if (responseCache.size() > MAX_CACHE_SIZE) {
                 // Remove a random entry - simple eviction policy
                 String keyToRemove = responseCache.keySet().iterator().next();
                 responseCache.remove(keyToRemove);
             }
-            
+
             long processingTime = System.currentTimeMillis() - startTime;
             log.debug("Question processed in {}ms: {}", processingTime, normalizedQuestion);
-            
+
             return answer;
         } catch (Exception e) {
             log.error("Error processing question: {}", e.getMessage(), e);
             return "Đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng thử lại.";
         }
     }
-    
+
     /**
      * Lấy câu trả lời hội thoại cho các cụm từ đơn giản
      */
@@ -183,14 +183,14 @@ public class ChatService {
             int randomIndex = (int) (Math.random() * responses.size());
             return responses.get(randomIndex);
         }
-        
+
         // Check if the question is a conversational phrase
         if (question.length() < 10) {
             if (containsAcknowledgmentPhrase(question)) {
                 return getRandomAcknowledgementResponse();
             }
         }
-        
+
         return null;
     }
 
@@ -204,16 +204,16 @@ public class ChatService {
             "hiểu rồi", "rõ", "rõ rồi", "cảm ơn", "cám ơn", "thanks", 
             "đã hiểu", "tôi hiểu rồi", "vâng", "đúng", "đúng rồi"
         };
-        
+
         for (String ack : acknowledgments) {
             if (text.equals(ack) || text.startsWith(ack + " ") || text.endsWith(" " + ack)) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     /**
      * Trả về câu trả lời ngẫu nhiên cho câu xác nhận
      */
@@ -227,11 +227,11 @@ public class ChatService {
             "Bạn có thắc mắc gì khác không?",
             "Tôi rất vui khi bạn hài lòng với câu trả lời."
         };
-        
+
         int randomIndex = (int) (Math.random() * responses.length);
         return responses[randomIndex];
     }
-    
+
     /**
      * Trích xuất các câu liên quan trực tiếp đến câu hỏi
      */
@@ -240,34 +240,34 @@ public class ChatService {
             if (context.length() <= MAX_ANSWER_LENGTH) {
                 return context;
             }
-            
+
             // Simple sentence splitting
             String[] sentences = context.split("\\. |\\? |\\! |\\n");
-            
+
             // Get the most relevant sentences based on keyword matching
             List<String> relevantSentences = new ArrayList<>();
             String[] questionWords = question.toLowerCase().split("\\s+");
-            
+
             for (String sentence : sentences) {
                 String lowercaseSentence = sentence.toLowerCase();
                 int matchCount = 0;
-                
+
                 for (String word : questionWords) {
                     if (word.length() > 3 && lowercaseSentence.contains(word)) {
                         matchCount++;
                     }
                 }
-                
+
                 if (matchCount > 0) {
                     relevantSentences.add(sentence);
                 }
             }
-            
+
             // If we found relevant sentences, join them
             if (!relevantSentences.isEmpty()) {
                 return String.join(". ", relevantSentences);
             }
-            
+
             // Otherwise return a truncated context
             return context.substring(0, Math.min(context.length(), MAX_ANSWER_LENGTH));
         } catch (Exception e) {
@@ -275,7 +275,7 @@ public class ChatService {
             return context;
         }
     }
-    
+
     /**
      * Kiểm tra câu trả lời không hợp lệ
      */
@@ -283,13 +283,13 @@ public class ChatService {
         if (answer == null || answer.trim().isEmpty()) {
             return true;
         }
-        
+
         String lowercaseAnswer = answer.toLowerCase();
         return lowercaseAnswer.contains("no relevant information") || 
                lowercaseAnswer.contains("không tìm thấy thông tin") ||
                lowercaseAnswer.contains("không có thông tin");
     }
-    
+
     /**
      * Chuẩn hóa câu trả lời bằng cách loại bỏ các tiền tố phổ biến và làm sạch văn bản
      */
@@ -299,7 +299,7 @@ public class ChatService {
         }
 
         String result = answer.trim();
-        
+
         // Remove common prefixes
         String[] prefixes = {
             "Dựa trên thông tin cung cấp, ",
@@ -314,14 +314,14 @@ public class ChatService {
             "Theo nguồn thông tin, ",
             "Căn cứ vào thông tin, "
         };
-        
+
         for (String prefix : prefixes) {
             if (result.toLowerCase().startsWith(prefix.toLowerCase())) {
                 result = result.substring(prefix.length());
                 break;
             }
         }
-        
+
         // Remove common suffixes
         String[] suffixes = {
             " Hy vọng thông tin này hữu ích cho bạn.",
@@ -331,22 +331,22 @@ public class ChatService {
             " Hy vọng điều này trả lời được câu hỏi của bạn.",
             " Tôi hy vọng điều này giúp ích cho bạn."
         };
-        
+
         for (String suffix : suffixes) {
             if (result.endsWith(suffix)) {
                 result = result.substring(0, result.length() - suffix.length());
                 break;
             }
         }
-        
+
         // Capitalize first letter if needed
         if (!result.isEmpty()) {
             result = Character.toUpperCase(result.charAt(0)) + result.substring(1);
         }
-        
+
         return result.trim();
     }
-    
+
     /**
      * Giới hạn độ dài câu trả lời tới MAX_ANSWER_LENGTH
      */
@@ -356,7 +356,7 @@ public class ChatService {
         }
         return answer.substring(0, MAX_ANSWER_LENGTH - 3) + "...";
     }
-    
+
     /**
      * Lưu câu hỏi và câu trả lời
      */
@@ -381,7 +381,7 @@ public class ChatService {
             log.warn("Error saving question and answer: " + e.getMessage());
         }
     }
-    
+
     /**
      * Viết hoa chữ cái đầu tiên của mỗi từ trong chuỗi
      */
@@ -389,10 +389,10 @@ public class ChatService {
         if (text == null || text.isEmpty()) {
             return text;
         }
-        
+
         StringBuilder result = new StringBuilder();
         boolean capitalizeNext = true;
-        
+
         for (char c : text.toCharArray()) {
             if (Character.isWhitespace(c) || c == '.' || c == ',' || c == '!' || c == '?' || c == ':' || c == ';' || c == '-') {
                 capitalizeNext = true;
@@ -404,10 +404,10 @@ public class ChatService {
                 result.append(c);
             }
         }
-        
+
         return result.toString();
     }
-    
+
     /**
      * Trả về một phản hồi ngẫu nhiên cho câu xác nhận
      */
@@ -420,11 +420,11 @@ public class ChatService {
             "Cảm ơn bạn đã tương tác. Bạn cần tôi giải thích thêm về điều gì không?",
             "Tôi rất vui khi có thể giúp đỡ. Còn vấn đề nào bạn muốn tìm hiểu không?"
         );
-        
+
         int randomIndex = (int) (Math.random() * responses.size());
         return responses.get(randomIndex);
     }
-    
+
     /**
      * Trả về một phản hồi ngẫu nhiên cho câu phủ định
      */
@@ -440,7 +440,7 @@ public class ChatService {
             "Tôi đã ghi nhận phản hồi. Bạn cần hỗ trợ thêm điều gì không?",
             "Tôi sẽ nỗ lực để cung cấp thông tin tốt hơn. Bạn còn câu hỏi nào khác không?"
         );
-        
+
         int randomIndex = (int) (Math.random() * responses.size());
         return responses.get(randomIndex);
     }
@@ -469,35 +469,35 @@ public class ChatService {
             if (allQuestions.isEmpty()) {
                 return Collections.emptyList();
             }
-            
+
             // Create embedding for the question
             float[] questionVector = vectorService.createEmbedding(question);
             if (questionVector.length == 0) {
                 log.warn("Could not create embedding for question: {}", question);
                 return Collections.emptyList();
             }
-            
+
             // Calculate similarity with all questions in the database
             List<QuestionMatch> scoredQuestions = new ArrayList<>();
             for (Question q : allQuestions) {
                 float[] storedVector = vectorService.createEmbedding(q.getQuestionText());
                 float similarity = VectorUtil.cosineSimilarity(questionVector, storedVector);
-                
+
                 if (similarity > 0.6) { // Threshold for relevance
                     scoredQuestions.add(new QuestionMatch(q, similarity));
                 }
             }
-            
+
             // Sort by relevance score
             scoredQuestions.sort((q1, q2) -> Float.compare(q2.getScore(), q1.getScore()));
-            
+
             return scoredQuestions;
         } catch (Exception e) {
             log.error("Error finding similar questions: {}", e.getMessage());
             return Collections.emptyList();
         }
     }
-    
+
     /**
      * Tạo câu trả lời từ các câu tương tự bằng cách sử dụng Vertex AI
      */
@@ -506,50 +506,50 @@ public class ChatService {
             if (similarSentences.isEmpty()) {
                 return NO_INFORMATION_MESSAGE;
             }
-            
+
             // Combine similar sentences as context
             String context = String.join("\n\n", similarSentences);
-            
+
             // Extract relevant sentences
             String relevantText = extractRelevantSentences(question, context);
             if (relevantText.isEmpty()) {
                 relevantText = context;
             }
-            
+
             // Determine question type for specialized prompts
             QuestionType questionType = detectQuestionType(question);
-            
+
             // Use the detected question type to determine if it's a definition question
             boolean isDefinitionQuestion = (questionType == QuestionType.DEFINITION);
-            
+
             // For definition questions, verify the context actually contains the subject
             if (isDefinitionQuestion) {
                 // Extract subject of the definition question (the term before "là gì")
                 String subject = extractSubjectFromDefinitionQuestion(question);
-                
+
                 if (subject != null && !subject.isEmpty()) {
                     // Check if the context actually contains the subject
                     boolean contextContainsSubject = 
                         relevantText.toLowerCase().contains(subject.toLowerCase());
-                    
+
                     // If the context doesn't contain the subject, return no information
                     if (!contextContainsSubject) {
                         log.warn("Definition subject '{}' not found in context - query: '{}'", 
                                 subject, question);
                         return NO_INFORMATION_MESSAGE;
                     }
-                    
+
                     // For definition questions, also require a higher similarity threshold
                     // First sentence in similarSentences contains the similarity score in the log
                     float highestSimilarity = getHighestSimilarityFromSentences(similarSentences);
                     final float DEFINITION_SIMILARITY_THRESHOLD = 0.5f;
-                    
+
                     if (highestSimilarity < DEFINITION_SIMILARITY_THRESHOLD) {
                         log.warn("Definition question '{}' has similarity {} below threshold {} - returning no info", 
                                 question, highestSimilarity, DEFINITION_SIMILARITY_THRESHOLD);
                         return NO_INFORMATION_MESSAGE;
                     }
-                    
+
                     log.info("Definition question '{}' with subject '{}' passed checks - similarity: {}", 
                             question, subject, highestSimilarity);
                 }
@@ -557,22 +557,22 @@ public class ChatService {
                 // For non-definition questions, apply a lower similarity threshold
                 float highestSimilarity = getHighestSimilarityFromSentences(similarSentences);
                 final float GENERAL_SIMILARITY_THRESHOLD = 0.25f;
-                
+
                 if (highestSimilarity < GENERAL_SIMILARITY_THRESHOLD) {
                     log.warn("Question '{}' has similarity {} below threshold {} - returning no info", 
                             question, highestSimilarity, GENERAL_SIMILARITY_THRESHOLD);
                     return NO_INFORMATION_MESSAGE;
                 }
-                
+
                 log.info("Question '{}' passed similarity check: {}", question, highestSimilarity);
             }
-            
+
             // Generate prompt based on question type
             String prompt = generatePromptByQuestionType(question, questionType);
-            
+
             // Generate text using Vertex API
             String generatedText = vertexAIService.generateText(prompt);
-            
+
             // Validate and normalize answer
             if (isInvalidAnswer(generatedText)) {
                 // Use a more direct approach for invalid answers
@@ -585,7 +585,7 @@ public class ChatService {
                 }
                 return extractFirstFewSentences(relevantText, 2); // Extract only first 2 sentences
             }
-            
+
             String normalizedAnswer = normalizeAnswer(generatedText);
             return limitAnswerLength(normalizedAnswer);
         } catch (Exception e) {
@@ -593,7 +593,7 @@ public class ChatService {
             return NO_INFORMATION_MESSAGE;
         }
     }
-    
+
     /**
      * Trích xuất chủ đề từ câu hỏi định nghĩa
      * Ví dụ, từ "cháo là gì" trích xuất "cháo"
@@ -603,7 +603,7 @@ public class ChatService {
             if (question == null || question.isEmpty()) {
                 return null;
             }
-            
+
             // For Vietnamese questions like "X là gì"
             if (question.contains("là gì")) {
                 // Handle the specific case like "X là gì" with special treatment
@@ -617,14 +617,14 @@ public class ChatService {
                             subject = subject.substring(prefix.length()).trim();
                         }
                     }
-                    
+
                     // Remove question marks and other punctuation at the end
                     subject = subject.replaceAll("[,.?!:;]+$", "").trim();
-                    
+
                     return subject;
                 }
             }
-            
+
             // For English questions like "what is X"
             if (question.matches(".*\\bwhat\\s+is\\b.*")) {
                 String[] parts = question.split("\\bwhat\\s+is\\b");
@@ -632,7 +632,7 @@ public class ChatService {
                     return parts[1].trim();
                 }
             }
-            
+
             // For questions with "định nghĩa" or "giải thích"
             if (question.contains("định nghĩa") || question.contains("giải thích")) {
                 String[] wordsToRemove = {"định nghĩa", "giải thích", "về", "cho", "tôi", "tui", "mình", "chúng tôi", "chúng ta"};
@@ -642,14 +642,14 @@ public class ChatService {
                 }
                 return cleaned.trim();
             }
-            
+
             return null;
         } catch (Exception e) {
             log.error("Error extracting subject from definition question: {}", e.getMessage());
             return null;
         }
     }
-    
+
     /**
      * Trích xuất chỉ N câu đầu tiên từ một văn bản
      */
@@ -657,12 +657,12 @@ public class ChatService {
         if (text == null || text.isEmpty()) {
             return "";
         }
-        
+
         String[] sentences = text.split("(?<=[.!?])\\s+");
         if (sentences.length <= sentenceCount) {
             return text;
         }
-        
+
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < Math.min(sentenceCount, sentences.length); i++) {
             result.append(sentences[i]);
@@ -670,7 +670,7 @@ public class ChatService {
                 result.append(" ");
             }
         }
-        
+
         return result.toString().trim();
     }
 
@@ -680,25 +680,25 @@ public class ChatService {
     private static class QuestionMatch {
         private final Question question;
         private final float score;
-        
+
         public QuestionMatch(Question question, float score) {
             this.question = question;
             this.score = score;
         }
-        
+
         public String getQuestionText() {
             return question.getQuestionText();
         }
-        
+
         public String getAnswerText() {
             return question.getAnswerText();
         }
-        
+
         public float getScore() {
             return score;
         }
     }
-    
+
     /**
      * Khởi tạo phản hồi hội thoại
      */
@@ -710,7 +710,8 @@ public class ChatService {
         conversationalResponsesVi.put("hi", Arrays.asList("Xin chào! Tôi có thể giúp gì cho bạn?", "Chào bạn! Tôi có thể hỗ trợ bạn như thế nào?"));
         conversationalResponsesVi.put("tạm biệt", Arrays.asList("Tạm biệt! Hẹn gặp lại bạn.", "Chào tạm biệt! Rất vui được giúp đỡ bạn."));
         conversationalResponsesVi.put("cảm ơn", Arrays.asList("Không có gì! Rất vui được giúp đỡ bạn.", "Rất vui khi được hỗ trợ bạn!"));
-        
+        conversationalResponsesVi.put("bạn là m được gì", Arrays.asList("Tôi là trợ lý AI được tạo ra để hỗ trợ bạn tìm kiếm thông tin và trả lời các câu hỏi của bạn.", "Tôi được thiết kế để giúp bạn tìm kiếm và truy xuất thông tin từ tài liệu của bạn."));
+
         // English responses
         conversationalResponsesEn.put("hello", Arrays.asList("Hello! How can I help you?", "Hi there! What can I do for you?"));
         conversationalResponsesEn.put("hi", Arrays.asList("Hi! How can I assist you?", "Hello! What can I help you with?"));
@@ -718,7 +719,7 @@ public class ChatService {
         conversationalResponsesEn.put("thank you", Arrays.asList("You're welcome! Glad I could help.", "It's my pleasure to assist you!"));
         conversationalResponsesEn.put("bye", Arrays.asList("Goodbye! Have a great day.", "Farewell! Feel free to ask if you need anything else."));
     }
-    
+
     /**
      * Chuẩn hóa câu hỏi bằng cách loại bỏ ký tự đặc biệt và khoảng trắng thừa
      */
@@ -726,19 +727,19 @@ public class ChatService {
         if (question == null) {
             return "";
         }
-        
+
         // Convert to lowercase and trim
         String normalized = question.toLowerCase().trim();
-        
+
         // Remove punctuation except for essential ones
         normalized = normalized.replaceAll("[^\\p{L}\\p{N}\\s.,?!-]", "");
-        
+
         // Replace multiple spaces with a single space
         normalized = normalized.replaceAll("\\s+", " ");
-        
+
         return normalized;
     }
-    
+
     /**
      * Kiểm tra xem văn bản có chứa các cụm từ xác nhận không
      */
@@ -746,9 +747,9 @@ public class ChatService {
         if (text == null || text.isEmpty()) {
             return false;
         }
-        
+
         String normalized = text.toLowerCase().trim();
-        
+
         // Common acknowledgment phrases in Vietnamese and English
         String[] acknowledgments = {
             "ok", "okay", "được", "được rồi", "tốt", "tốt rồi", 
@@ -758,14 +759,14 @@ public class ChatService {
             "i see", "clear", "perfect", "great", "excellent",
             "ko", "không", "khỏi", "không cần", "thôi", "đừng", "dừng"
         };
-        
+
         for (String phrase : acknowledgments) {
             if (normalized.equals(phrase) || normalized.contains(" " + phrase + " ") || 
                 normalized.startsWith(phrase + " ") || normalized.endsWith(" " + phrase)) {
                 return true;
             }
         }
-        
+
         return false;
     }
 
@@ -777,18 +778,18 @@ public class ChatService {
         if (similarSentences == null || similarSentences.isEmpty()) {
             return 0.0f;
         }
-        
+
         // Try to get the similarity from the VectorService log data
         try {
             // First check the first sentence which often contains vector metadata
             String firstSentence = similarSentences.get(0);
             log.debug("Checking similarity from first sentence: {}", firstSentence);
-            
+
             // Log all sentences for debugging
             for (int i = 0; i < similarSentences.size(); i++) {
                 log.debug("Sentence {}: {}", i, similarSentences.get(i));
             }
-            
+
             // Try all possible patterns for score extraction
             // Pattern 1: Direct score format in the text - updated to match the actual format
             java.util.regex.Pattern scorePattern = java.util.regex.Pattern.compile("score=(\\d+\\.\\d+)");
@@ -800,7 +801,7 @@ public class ChatService {
             } else {
                 log.debug("Pattern 'score=X.XXX' not found in: {}", firstSentence);
             }
-            
+
             // Pattern 2: Similarity format
             java.util.regex.Pattern similarityPattern = java.util.regex.Pattern.compile("similarity:\\s*(\\d+\\.\\d+)");
             java.util.regex.Matcher similarityMatcher = similarityPattern.matcher(firstSentence);
@@ -811,13 +812,13 @@ public class ChatService {
             } else {
                 log.debug("Pattern 'similarity: X.XXX' not found in: {}", firstSentence);
             }
-            
+
             // If not found in the first sentence, search through all sentences
             for (String sentence : similarSentences) {
                 // Check for any variations of the score pattern
                 String[] patterns = {"score=(\\d+\\.\\d+)", "similarity[:\\s]+(\\d+\\.\\d+)", 
                                     "similarity score[:\\s]+(\\d+\\.\\d+)", "score[:\\s]+(\\d+\\.\\d+)"};
-                
+
                 for (String patternStr : patterns) {
                     java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(patternStr);
                     java.util.regex.Matcher matcher = pattern.matcher(sentence);
@@ -828,14 +829,14 @@ public class ChatService {
                     }
                 }
             }
-            
+
             // If we still haven't found a score but have sentences, check for known prefixes
             // "Phở là một món ăn truyền thống..." indicates a match for phở
             if (firstSentence.toLowerCase().contains("phở là")) {
                 log.debug("Found definition match for 'phở' with no explicit score, using default high score");
                 return 0.75f; // Use a high default score for clear definition matches
             }
-            
+
             // If no pattern match found but we have sentences, assume at least some similarity
             log.debug("No explicit similarity score found in sentences, using default value");
             return 0.5f; // Increased from 0.3f to pass threshold for better matching
@@ -860,14 +861,14 @@ public class ChatService {
         ANALYSIS,         // Phân tích X, Đánh giá X
         GENERAL           // Câu hỏi mặc định/khác
     }
-    
+
     /**
      * Phát hiện loại câu hỏi để tạo gợi ý phù hợp
      */
     private QuestionType detectQuestionType(String question) {
         // Convert to lowercase for easier pattern matching
         String lowerCaseQuestion = question.toLowerCase();
-        
+
         // Definition patterns
         if (lowerCaseQuestion.matches(".*(là gì|định nghĩa|khái niệm|nghĩa là|ý nghĩa của|giải thích|giải nghĩa).*") ||
             lowerCaseQuestion.contains("cho biết") && (lowerCaseQuestion.contains("là gì") || lowerCaseQuestion.contains("định nghĩa")) ||
@@ -883,7 +884,7 @@ public class ChatService {
             lowerCaseQuestion.contains("definition of")) {
             return QuestionType.DEFINITION;
         }
-        
+
         // Comparison patterns
         if (lowerCaseQuestion.matches(".*(so sánh|khác nhau|giống nhau|điểm giống|điểm khác|phân biệt).*") ||
             lowerCaseQuestion.contains("compare") || lowerCaseQuestion.contains("difference between") ||
@@ -891,7 +892,7 @@ public class ChatService {
             lowerCaseQuestion.contains("versus") || lowerCaseQuestion.contains(" vs ")) {
             return QuestionType.COMPARISON;
         }
-        
+
         // Procedure patterns
         if (lowerCaseQuestion.matches(".*(làm thế nào|làm sao|cách|quy trình|các bước|hướng dẫn|thực hiện).*") ||
             lowerCaseQuestion.startsWith("how to") || lowerCaseQuestion.startsWith("how do i") ||
@@ -899,7 +900,7 @@ public class ChatService {
             lowerCaseQuestion.contains("process of") || lowerCaseQuestion.contains("guide to")) {
             return QuestionType.PROCEDURE;
         }
-        
+
         // Cause-effect patterns
         if (lowerCaseQuestion.matches(".*(tại sao|vì sao|lý do|nguyên nhân|dẫn đến|kết quả của|hệ quả).*") ||
             lowerCaseQuestion.startsWith("why") || lowerCaseQuestion.startsWith("what causes") ||
@@ -907,7 +908,7 @@ public class ChatService {
             lowerCaseQuestion.contains("effect of") || lowerCaseQuestion.contains("consequence of")) {
             return QuestionType.CAUSE_EFFECT;
         }
-        
+
         // Historical patterns
         if (lowerCaseQuestion.matches(".*(lịch sử|nguồn gốc|bắt đầu|xuất phát|ra đời|hình thành|khi nào).*") ||
             lowerCaseQuestion.contains("history of") || lowerCaseQuestion.contains("origin of") ||
@@ -916,7 +917,7 @@ public class ChatService {
             lowerCaseQuestion.contains("start") || lowerCaseQuestion.contains("originate"))) {
             return QuestionType.HISTORICAL;
         }
-        
+
         // Listing patterns
         if (lowerCaseQuestion.matches(".*(liệt kê|kể tên|nêu|các loại|những loại|bao nhiêu|có mấy).*") ||
             lowerCaseQuestion.startsWith("list") || lowerCaseQuestion.startsWith("enumerate") ||
@@ -924,14 +925,14 @@ public class ChatService {
             lowerCaseQuestion.startsWith("name the") || lowerCaseQuestion.startsWith("give me")) {
             return QuestionType.LISTING;
         }
-        
+
         // Examples patterns
         if (lowerCaseQuestion.matches(".*(ví dụ|minh họa|dẫn chứng|trường hợp).*") ||
             lowerCaseQuestion.contains("example") || lowerCaseQuestion.contains("instance of") ||
             lowerCaseQuestion.startsWith("show me") || lowerCaseQuestion.contains("illustration of")) {
             return QuestionType.EXAMPLES;
         }
-        
+
         // Who-What patterns (identification)
         if (lowerCaseQuestion.matches(".*(ai là|là ai|người nào|cái gì|vật gì|nơi nào|ở đâu).*") ||
             lowerCaseQuestion.startsWith("who") || lowerCaseQuestion.startsWith("what") ||
@@ -939,7 +940,7 @@ public class ChatService {
             lowerCaseQuestion.startsWith("whose")) {
             return QuestionType.WHO_WHAT;
         }
-        
+
         // Analysis patterns
         if (lowerCaseQuestion.matches(".*(đánh giá|nhận xét|phân tích|đánh giá|ưu điểm|nhược điểm|mặt tốt|mặt xấu).*") ||
             lowerCaseQuestion.contains("analyze") || lowerCaseQuestion.contains("evaluate") ||
@@ -947,11 +948,11 @@ public class ChatService {
             lowerCaseQuestion.contains("strengths and weaknesses") || lowerCaseQuestion.contains("advantages and disadvantages")) {
             return QuestionType.ANALYSIS;
         }
-        
+
         // Default to general if no specific pattern is matched
         return QuestionType.GENERAL;
     }
-    
+
     /**
      * Tạo gợi ý phù hợp dựa trên loại câu hỏi
      */
