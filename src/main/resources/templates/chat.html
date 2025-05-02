@@ -573,6 +573,20 @@
                 }
             });
             
+            // Xử lý khi nhấn Enter để gửi tin nhắn
+            messageInput.addEventListener('keydown', function(e) {
+                // Nếu nhấn Enter mà không giữ Shift
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Ngăn không cho xuống dòng
+                    
+                    // Nếu có nội dung thì submit form
+                    if (this.value.trim() !== '') {
+                        chatForm.dispatchEvent(new Event('submit'));
+                    }
+                }
+                // Nếu nhấn Shift+Enter thì cho phép xuống dòng mới
+            });
+            
             // Xử lý gửi tin nhắn
             chatForm.addEventListener('submit', function(e) {
                 e.preventDefault();
