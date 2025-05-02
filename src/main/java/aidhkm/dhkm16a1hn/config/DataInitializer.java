@@ -80,9 +80,13 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
     public void onApplicationEvent(ContextRefreshedEvent event) {
         init();
     }
+<<<<<<< HEAD
 
     // Phương thức tạo dữ liệu mẫu đã bị vô hiệu hóa
     /*
+=======
+/*
+>>>>>>> bbe59393a93acad2315df0ab03d012d503c10eda
     private void createSampleData() {
         // Tạo dữ liệu mẫu về Phở
         Document document = new Document();
@@ -103,5 +107,10 @@ public class DataInitializer implements ApplicationListener<ContextRefreshedEven
         
         logger.info("Created sample data with embedding vectors");
     }
+<<<<<<< HEAD
     */
 } 
+=======
+*/
+} 
+>>>>>>> bbe59393a93acad2315df0ab03d012d503c10eda
