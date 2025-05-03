@@ -90,14 +90,19 @@ public class VertexAIService {
     private final Map<String, float[]> embeddingCache = new ConcurrentHashMap<>();
     private static final int EMBEDDING_CACHE_SIZE = 2000;
 
+    /**
+     * Khởi tạo dịch vụ Vertex AI
+     * Phương thức này thiết lập các thành phần cần thiết như WebClient 
+     * và ObjectMapper để tương tác với API Vertex AI
+     */
     public VertexAIService() {
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
                 
-        // Configure ObjectMapper for proper UTF-8 handling
+        // Cấu hình ObjectMapper cho xử lý UTF-8 phù hợp
         this.objectMapper = new ObjectMapper();
-        // Ensure proper UTF-8 serialization
+        // Đảm bảo mã hóa UTF-8 đúng
         this.objectMapper.configure(com.fasterxml.jackson.core.JsonGenerator.Feature.ESCAPE_NON_ASCII, false);
         this.objectMapper.configure(com.fasterxml.jackson.core.JsonParser.Feature.AUTO_CLOSE_SOURCE, true);
     }
@@ -264,32 +269,35 @@ public class VertexAIService {
 
     /**
      * Tạo văn bản từ mô hình Vertex AI Gemini
+     * Phương thức này gửi prompt đến API Vertex AI để tạo phản hồi,
+     * xử lý bộ nhớ đệm và trả về văn bản được tạo
+     * 
      * @param prompt Nội dung prompt
      * @return Văn bản được tạo
      */
     public String generateText(String prompt) {
         long startTime = System.currentTimeMillis();
         try {
-            logger.info("Processing text generation request");
+            logger.info("Đang xử lý yêu cầu tạo văn bản");
             
             // Kiểm tra cache
             String cacheKey = String.valueOf(prompt.hashCode());
             if (responseCache.containsKey(cacheKey)) {
-                logger.info("Cache hit for prompt");
-                logger.info("Cache retrieval time: " + (System.currentTimeMillis() - startTime) + "ms");
+                logger.info("Tìm thấy kết quả trong bộ nhớ đệm");
+                logger.info("Thời gian lấy từ bộ nhớ đệm: " + (System.currentTimeMillis() - startTime) + "ms");
                 return responseCache.get(cacheKey);
             }
             
             // Xây dựng yêu cầu
             String requestBody = buildVertexAIRequest(prompt);
-            logger.info("Text generation request body (truncated): " + 
+            logger.info("Body yêu cầu tạo văn bản (đã cắt ngắn): " + 
                 requestBody.substring(0, Math.min(requestBody.length(), 500)) + 
                 (requestBody.length() > 500 ? "..." : ""));
             
             // Gọi API với retry logic
             long apiCallStart = System.currentTimeMillis();
             String response = callVertexAPIWithRetry(requestBody);
-            logger.info("API call time: " + (System.currentTimeMillis() - apiCallStart) + "ms");
+            logger.info("Thời gian gọi API: " + (System.currentTimeMillis() - apiCallStart) + "ms");
             
             // Xử lý phản hồi
             long parseStart = System.currentTimeMillis();
@@ -301,36 +309,41 @@ public class VertexAIService {
                 } catch (Exception e) {
                     StringWriter sw = new StringWriter();
                     e.printStackTrace(new PrintWriter(sw));
-                    logger.severe("Error parsing JSON response: " + e.getMessage());
-                    logger.severe("JSON parsing stack trace: " + sw.toString());
-                    logger.severe("Raw response (truncated): " + 
+                    logger.severe("Lỗi phân tích phản hồi JSON: " + e.getMessage());
+                    logger.severe("Stack trace phân tích JSON: " + sw.toString());
+                    logger.severe("Phản hồi thô (đã cắt ngắn): " + 
                         (response != null ? response.substring(0, Math.min(response.length(), 1000)) + "..." : "null"));
                 }
             }
-            logger.info("Response parsing time: " + (System.currentTimeMillis() - parseStart) + "ms");
+            logger.info("Thời gian phân tích phản hồi: " + (System.currentTimeMillis() - parseStart) + "ms");
             
             // Lưu vào cache
             if (generatedText != null) {
                 responseCache.put(cacheKey, generatedText);
             }
             
-            logger.info("Total text generation time: " + (System.currentTimeMillis() - startTime) + "ms");
+            logger.info("Tổng thời gian tạo văn bản: " + (System.currentTimeMillis() - startTime) + "ms");
             return generatedText != null ? generatedText : "Xin lỗi, tôi không thể tạo phản hồi lúc này.";
         } catch (Exception e) {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
-            logger.severe("Error generating text: " + e.getMessage());
-            logger.severe("Generation error stack trace: " + sw.toString());
+            logger.severe("Lỗi khi tạo văn bản: " + e.getMessage());
+            logger.severe("Stack trace lỗi tạo văn bản: " + sw.toString());
             return "Xin lỗi, tôi không thể tạo phản hồi lúc này.";
         }
     }
 
     /**
      * Trích xuất văn bản từ phản hồi JSON
+     * Phương thức này phân tích cấu trúc JSON trả về từ API Vertex AI
+     * để lấy nội dung văn bản được tạo ra
+     * 
+     * @param jsonResponse Đối tượng JsonNode chứa phản hồi từ API
+     * @return Văn bản đã được trích xuất hoặc null nếu có lỗi
      */
     private String extractTextFromResponse(JsonNode jsonResponse) {
         try {
-            logger.info("Parsing response: " + jsonResponse.toString().substring(0, Math.min(200, jsonResponse.toString().length())) + "...");
+            logger.info("Phân tích phản hồi: " + jsonResponse.toString().substring(0, Math.min(200, jsonResponse.toString().length())) + "...");
             
             if (jsonResponse.has("candidates") && jsonResponse.get("candidates").size() > 0) {
                 JsonNode candidate = jsonResponse.get("candidates").get(0);
@@ -345,7 +358,7 @@ public class VertexAIService {
                                              .get("text")
                                              .asText();
                     
-                    logger.info("Response received from Gemini 1.5 Pro");
+                    logger.info("Đã nhận phản hồi từ Gemini 1.5 Pro");
                     return generatedText;
                 }
             }
@@ -364,22 +377,30 @@ public class VertexAIService {
                                                .get("text")
                                                .asText();
                     
-                    logger.info("Response received from Gemini 1.5 Pro (old format)");
+                    logger.info("Đã nhận phản hồi từ Gemini 1.5 Pro (định dạng cũ)");
                     return generatedText;
                 }
             }
             
-            logger.warning("Invalid response format from Gemini 1.5 Pro API: " + jsonResponse.toString().substring(0, Math.min(500, jsonResponse.toString().length())));
+            logger.warning("Định dạng phản hồi không hợp lệ từ API Gemini 1.5 Pro: " + jsonResponse.toString().substring(0, Math.min(500, jsonResponse.toString().length())));
             return null;
         } catch (Exception e) {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
-            logger.severe("Error extracting text from response: " + e.getMessage());
-            logger.severe("Full stack trace: " + sw.toString());
+            logger.severe("Lỗi khi trích xuất văn bản từ phản hồi: " + e.getMessage());
+            logger.severe("Stack trace đầy đủ: " + sw.toString());
             return null;
         }
     }
 
+    /**
+     * Xây dựng yêu cầu JSON cho API Vertex AI
+     * Phương thức này tạo cấu trúc JSON phù hợp cho yêu cầu tạo văn bản,
+     * bao gồm prompt và các thông số cấu hình
+     * 
+     * @param prompt Nội dung prompt đầu vào
+     * @return Chuỗi JSON đại diện cho yêu cầu
+     */
     private String buildVertexAIRequest(String prompt) {
         ObjectNode rootNode = objectMapper.createObjectNode();
         
@@ -415,16 +436,19 @@ public class VertexAIService {
         
         try {
             String json = objectMapper.writeValueAsString(rootNode);
-            logger.info("Generated JSON Request: " + json);
+            logger.info("Đã tạo JSON Request: " + json);
             return json;
         } catch (JsonProcessingException e) {
-            logger.severe("Error serializing request: " + e.getMessage());
+            logger.severe("Lỗi chuyển đổi yêu cầu: " + e.getMessage());
             return "{}";
         }
     }
 
     /**
      * Gọi API Vertex AI với cơ chế retry - phương thức đơn giản hóa
+     * Phương thức này sử dụng cơ chế thử lại để đảm bảo tính ổn định
+     * khi gặp các lỗi tạm thời từ API Vertex AI
+     * 
      * @param requestData Dữ liệu request
      * @return Kết quả từ API
      */
@@ -449,7 +473,7 @@ public class VertexAIService {
                 "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
                 location, actualProjectId, location, modelNameForUrl);
             
-            logger.info("Using Gemini API endpoint with :generateContent suffix");
+            logger.info("Sử dụng endpoint API Gemini với hậu tố :generateContent");
         } else {
             // Các model khác dùng định dạng URL thông thường với ":predict"
             endpoint = String.format(
@@ -457,8 +481,8 @@ public class VertexAIService {
                 location, actualProjectId, location, modelNameForUrl);
         }
         
-        logger.info("Calling Vertex AI API at endpoint: " + endpoint);
-        logger.info("Using project ID: " + actualProjectId + " for Vertex AI API call");
+        logger.info("Gọi API Vertex AI tại endpoint: " + endpoint);
+        logger.info("Sử dụng project ID: " + actualProjectId + " cho gọi API Vertex AI");
         
         // Gọi phương thức đầy đủ với giá trị mặc định
         return callVertexAPIWithRetry(endpoint, requestData, 0, MAX_RETRIES);
@@ -466,6 +490,9 @@ public class VertexAIService {
 
     /**
      * Lấy project ID thực tế từ GoogleCredentials
+     * Phương thức này trả về project ID từ credentials nếu có,
+     * nếu không sẽ sử dụng project ID từ cấu hình
+     * 
      * @return Project ID từ credentials hoặc từ cấu hình nếu không lấy được
      */
     private String getActualProjectIdFromCredentials() {
@@ -492,6 +519,9 @@ public class VertexAIService {
 
     /**
      * Gọi API Vertex AI với cơ chế retry
+     * Phương thức này sử dụng HttpURLConnection để gọi API Vertex AI
+     * với cơ chế thử lại khi gặp lỗi và xử lý các loại lỗi khác nhau
+     * 
      * @param endpoint Đường dẫn endpoint
      * @param requestData Dữ liệu request
      * @param retryCount Số lần retry hiện tại
@@ -531,7 +561,7 @@ public class VertexAIService {
                 }
                 
                 long endTime = System.currentTimeMillis();
-                logger.info("Vertex AI API call successful, took " + (endTime - startTime) + "ms");
+                logger.info("Gọi API Vertex AI thành công, mất " + (endTime - startTime) + "ms");
                 
                 return responseBody;
             } else {
@@ -548,22 +578,22 @@ public class VertexAIService {
                     }
                 } else {
                     // No error stream available, create a default error message
-                    responseBody = "No error details available (error stream was null)";
-                    logger.warning("Error stream was null for HTTP response code: " + responseCode);
+                    responseBody = "Không có chi tiết lỗi (error stream là null)";
+                    logger.warning("Error stream là null cho mã phản hồi HTTP: " + responseCode);
                 }
                 
-                logger.warning("Vertex AI API error: " + responseCode + " - " + responseBody);
+                logger.warning("Lỗi API Vertex AI: " + responseCode + " - " + responseBody);
                 
                 // Xử lý lỗi xác thực (401)
                 if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    logger.warning("Authentication error (401): " + responseBody);
+                    logger.warning("Lỗi xác thực (401): " + responseBody);
                     if (retryCount < maxRetries) {
-                        logger.info("Refreshing token and retrying API call (" + (retryCount + 1) + "/" + maxRetries + ")");
+                        logger.info("Làm mới token và thử lại API call (" + (retryCount + 1) + "/" + maxRetries + ")");
                         refreshAccessToken(); // Force token refresh
                         return callVertexAPIWithRetry(endpoint, requestData, retryCount + 1, maxRetries);
                     } else {
-                        logger.severe("Maximum retry attempts reached for authentication error");
-                        throw new RuntimeException("Authentication failed after " + maxRetries + " attempts");
+                        logger.severe("Đã đạt số lần thử lại tối đa cho lỗi xác thực");
+                        throw new RuntimeException("Xác thực thất bại sau " + maxRetries + " lần thử");
                     }
                 }
                 
@@ -571,133 +601,153 @@ public class VertexAIService {
                 if (responseCode == 429 || responseCode == 503) {
                     if (retryCount < maxRetries) {
                         int sleepTime = Math.min(1000 * (int) Math.pow(2, retryCount), 32000);
-                        logger.info("Rate limited or quota exceeded, retrying after " + sleepTime + "ms (" + (retryCount + 1) + "/" + maxRetries + ")");
+                        logger.info("Hạn chế tỷ lệ hoặc vượt quota, thử lại sau " + sleepTime + "ms (" + (retryCount + 1) + "/" + maxRetries + ")");
                         Thread.sleep(sleepTime);
                         return callVertexAPIWithRetry(endpoint, requestData, retryCount + 1, maxRetries);
                     } else {
-                        logger.severe("Maximum retry attempts reached for rate limit/quota");
+                        logger.severe("Đã đạt số lần thử lại tối đa cho lỗi rate limit/quota");
                     }
                 }
                 
                 // Các lỗi khác
-                throw new RuntimeException("Vertex AI API error: " + responseCode + " - " + responseBody);
+                throw new RuntimeException("Lỗi API Vertex AI: " + responseCode + " - " + responseBody);
             }
         } catch (Exception e) {
-            if (e instanceof RuntimeException && e.getMessage() != null && e.getMessage().startsWith("Vertex AI API error:")) {
+            if (e instanceof RuntimeException && e.getMessage() != null && e.getMessage().startsWith("Lỗi API Vertex AI:")) {
                 throw (RuntimeException) e;
             }
             
-            logger.severe("Error calling Vertex AI API: " + e.getMessage());
+            logger.severe("Lỗi khi gọi API Vertex AI: " + e.getMessage());
             if (retryCount < maxRetries) {
                 try {
                     int sleepTime = Math.min(1000 * (int) Math.pow(2, retryCount), 32000);
-                    logger.info("Retrying API call after error (" + (retryCount + 1) + "/" + maxRetries + "), waiting " + sleepTime + "ms");
+                    logger.info("Thử lại API call sau lỗi (" + (retryCount + 1) + "/" + maxRetries + "), đợi " + sleepTime + "ms");
                     Thread.sleep(sleepTime);
                     return callVertexAPIWithRetry(endpoint, requestData, retryCount + 1, maxRetries);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("API call interrupted during retry backoff", ie);
+                    throw new RuntimeException("API call bị gián đoạn trong quá trình chờ thử lại", ie);
                 }
             } else {
-                logger.severe("Maximum retry attempts reached for API call");
+                logger.severe("Đã đạt số lần thử lại tối đa cho API call");
                 // Log thêm stack trace đầy đủ
                 StringWriter sw = new StringWriter();
                 e.printStackTrace(new PrintWriter(sw));
-                logger.severe("Full error stack trace: " + sw.toString());
-                throw new RuntimeException("Failed to call Vertex AI API after " + maxRetries + " attempts", e);
+                logger.severe("Stack trace lỗi đầy đủ: " + sw.toString());
+                throw new RuntimeException("Không thể gọi API Vertex AI sau " + maxRetries + " lần thử", e);
             }
         }
     }
 
     /**
-     * Builds the request for embedding generation based on the text provided.
-     * This method constructs the appropriate JSON structure for the text-embedding model.
+     * Kiểm tra xem token truy cập OAuth đã hết hạn chưa
+     * Phương thức này kiểm tra thời gian hết hạn của token và
+     * thêm buffer 5 phút để tránh sử dụng token gần hết hạn
      * 
-     * @param text The text to create an embedding for
-     * @return A properly formatted request as ObjectNode
+     * @return true nếu token đã hết hạn hoặc sắp hết hạn, false nếu còn hiệu lực
+     */
+    private boolean isAccessTokenExpired() {
+        long currentTimeSeconds = System.currentTimeMillis() / 1000;
+        boolean isExpired = accessToken == null || currentTimeSeconds >= tokenExpirationTime;
+        
+        // Thêm buffer 5 phút để tránh sử dụng token gần hết hạn
+        if (!isExpired && tokenExpirationTime - currentTimeSeconds < 300) {
+            logger.info("Token sắp hết hạn (còn " + (tokenExpirationTime - currentTimeSeconds) + " giây), coi như đã hết hạn");
+            return true;
+        }
+        
+        return isExpired;
+    }
+
+    /**
+     * Tạo yêu cầu JSON cho việc tạo vector nhúng dựa trên văn bản
+     * Phương thức này xây dựng cấu trúc JSON phù hợp cho mô hình text-embedding
+     * 
+     * @param text Văn bản cần tạo vector nhúng
+     * @return Đối tượng ObjectNode chứa yêu cầu đã được định dạng
      */
     private ObjectNode buildEmbeddingRequest(String text) {
         logger.info("Building embedding request for text: " + text);
         
-        // Normalize the text early to ensure consistent UTF-8 handling
+        // Chuẩn hóa văn bản ngay từ đầu để đảm bảo xử lý UTF-8 nhất quán
         String normalizedText = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFKC);
         normalizedText = normalizedText.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "").trim();
         
-        logger.info("Text after normalization: " + normalizedText);
+        logger.info("Văn bản sau khi chuẩn hóa: " + normalizedText);
         
-        // Ensure we have valid text, use a placeholder if empty
+        // Đảm bảo có văn bản hợp lệ, sử dụng placeholder nếu rỗng
         if (normalizedText == null || normalizedText.isEmpty()) {
             normalizedText = "placeholder_text";
-            logger.warning("Text is empty after normalization, using placeholder: " + normalizedText);
+            logger.warning("Văn bản rỗng sau khi chuẩn hóa, sử dụng placeholder: " + normalizedText);
         }
         
-        // Ensure proper UTF-8 encoding for the text
+        // Đảm bảo mã hóa UTF-8 chính xác cho văn bản
         String encodedText;
         try {
-            // Re-encode the text to ensure proper UTF-8 handling
+            // Mã hóa lại văn bản để đảm bảo xử lý UTF-8 chính xác
             byte[] bytes = normalizedText.getBytes(StandardCharsets.UTF_8);
-            logger.info("Raw UTF-8 bytes: " + bytesToHex(bytes));
+            logger.info("Byte UTF-8 thô: " + bytesToHex(bytes));
             
             encodedText = new String(bytes, StandardCharsets.UTF_8);
-            logger.info("Text after UTF-8 encoding: " + encodedText);
+            logger.info("Văn bản sau khi mã hóa UTF-8: " + encodedText);
             
-            // Double-check encoding result
+            // Kiểm tra kết quả mã hóa
             if (encodedText.isEmpty() || !encodedText.equals(normalizedText)) {
-                logger.warning("UTF-8 encoding changed the text! Original: '" + normalizedText + 
-                             "', Encoded: '" + encodedText + "'");
+                logger.warning("Mã hóa UTF-8 đã thay đổi văn bản! Gốc: '" + normalizedText + 
+                             "', Đã mã hóa: '" + encodedText + "'");
                 
                 if (encodedText.isEmpty()) {
                     encodedText = "placeholder_text_after_encoding";
-                    logger.warning("Using placeholder after empty encoding result: " + encodedText);
+                    logger.warning("Sử dụng placeholder sau khi kết quả mã hóa rỗng: " + encodedText);
                 }
             }
         } catch (Exception e) {
-            logger.warning("Error encoding text to UTF-8, using original text: " + e.getMessage());
+            logger.warning("Lỗi khi mã hóa văn bản thành UTF-8, sử dụng văn bản gốc: " + e.getMessage());
             encodedText = normalizedText;
         }
         
-        // Create the request structure using Jackson's ObjectNode
+        // Tạo cấu trúc yêu cầu sử dụng ObjectNode của Jackson
         ObjectNode rootNode = objectMapper.createObjectNode();
         ArrayNode instancesArray = objectMapper.createArrayNode();
         
         if (embeddingModelName.contains("text-embedding-005")) {
-            // For text-embedding-005 model - using the correct format { "content": "..." }
+            // Cho mô hình text-embedding-005 - sử dụng định dạng chính xác { "content": "..." }
             ObjectNode instance = objectMapper.createObjectNode();
-            instance.put("content", encodedText);  // Direct content format
+            instance.put("content", encodedText);  // Định dạng nội dung trực tiếp
             instancesArray.add(instance);
             
-            // Set parameters
+            // Thiết lập tham số
             ObjectNode parameters = objectMapper.createObjectNode();
             parameters.put("dimension", 768);
             
             rootNode.set("instances", instancesArray);
             rootNode.set("parameters", parameters);
             
-            logger.info("Using correct text-embedding-005 format: { \"content\": \"...\" }");
+            logger.info("Sử dụng định dạng text-embedding-005 chính xác: { \"content\": \"...\" }");
         } else {
-            // For older models like textembedding-gecko
+            // Cho các mô hình cũ hơn như textembedding-gecko
             ObjectNode instance = objectMapper.createObjectNode();
             instance.put("content", encodedText);
             instancesArray.add(instance);
             rootNode.set("instances", instancesArray);
         }
         
-        // Log the request body for debugging
+        // Ghi log body yêu cầu để gỡ lỗi
         try {
-            // Configure ObjectMapper for UTF-8
+            // Cấu hình ObjectMapper cho UTF-8
             String jsonBody = objectMapper.writerWithDefaultPrettyPrinter()
                 .writeValueAsString(rootNode);
-            logger.info("Request body prepared:\n" + jsonBody);
+            logger.info("Body yêu cầu đã chuẩn bị:\n" + jsonBody);
             
-            // Validate the JSON structure (for logging purposes only)
+            // Xác thực cấu trúc JSON (chỉ để gỡ lỗi)
             if (jsonBody.contains("\"content\":\"" + encodedText + "\"")) {
-                logger.info("✓ FORMAT CHECK PASSED: JSON contains expected Vietnamese text correctly encoded");
+                logger.info("✓ KIỂM TRA ĐỊNH DẠNG ĐẠT: JSON chứa văn bản tiếng Việt dự kiến được mã hóa chính xác");
             } else {
-                logger.warning("✗ FORMAT CHECK FAILED: JSON does not contain expected text: " + encodedText);
-                logger.warning("JSON content: " + jsonBody);
+                logger.warning("✗ KIỂM TRA ĐỊNH DẠNG THẤT BẠI: JSON không chứa văn bản dự kiến: " + encodedText);
+                logger.warning("Nội dung JSON: " + jsonBody);
             }
         } catch (Exception e) {
-            logger.severe("Error serializing request body to JSON: " + e.getMessage());
+            logger.severe("Lỗi chuyển đổi body yêu cầu thành JSON: " + e.getMessage());
         }
         
         return rootNode;
@@ -705,6 +755,9 @@ public class VertexAIService {
 
     /**
      * Tạo embedding vector từ văn bản sử dụng Vertex AI
+     * Phương thức này gửi văn bản đến API Vertex AI để tạo vector nhúng
+     * phù hợp cho việc so sánh ngữ nghĩa
+     * 
      * @param text Văn bản đầu vào
      * @return Vector embedding
      */
@@ -738,7 +791,7 @@ public class VertexAIService {
                 logger.warning("Văn bản trống sau khi mã hóa UTF-8 - sử dụng phương thức dự phòng");
                 return createFallbackEmbedding("placeholder text");
             }
-            logger.info("Text after normalization and UTF-8 encoding: " + finalText);
+            logger.info("Văn bản sau khi chuẩn hóa và mã hóa UTF-8: " + finalText);
         } catch (Exception e) {
             logger.severe("Lỗi trong quá trình mã hóa UTF-8: " + e.getMessage());
             return createFallbackEmbedding("placeholder text");
@@ -778,7 +831,7 @@ public class VertexAIService {
             long startTime = System.currentTimeMillis();
             
             // Chuẩn bị request body
-            logger.info("Preparing request with model: " + embeddingModelName);
+            logger.info("Đang chuẩn bị yêu cầu với mô hình: " + embeddingModelName);
             ObjectNode requestNode = buildEmbeddingRequest(finalText);
             
             // Luôn sử dụng project ID từ cấu hình
@@ -789,13 +842,13 @@ public class VertexAIService {
                 "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:predict",
                 location, actualProjectId, location, embeddingModelName);
             
-            logger.info("Calling embedding API with URL: " + apiUrl);
+            logger.info("Đang gọi API embedding với URL: " + apiUrl);
             
             // Kiểm tra URL API
-            logger.info("API URL CHECK: " + 
+            logger.info("KIỂM TRA URL API: " + 
                         (apiUrl.contains("publishers/google/models/" + embeddingModelName + ":predict") ? 
-                         "✓ OK - URL contains correct model path" : 
-                         "✗ ERROR - URL does not contain correct model path"));
+                         "✓ OK - URL chứa đường dẫn mô hình chính xác" : 
+                         "✗ LỖI - URL không chứa đường dẫn mô hình chính xác"));
             
             // Lấy token OAuth2 hiện tại
             String token = getAccessToken();
@@ -803,7 +856,7 @@ public class VertexAIService {
                 logger.severe("Không thể lấy token OAuth2");
                 throw new RuntimeException("Không có token OAuth2 hợp lệ");
             }
-            logger.info("OAuth2 token obtained");
+            logger.info("Đã lấy token OAuth2");
             
             // Gọi API sử dụng HttpURLConnection thay vì WebClient
             URL url = new URL(apiUrl);
@@ -821,7 +874,7 @@ public class VertexAIService {
             try {
                 // Sử dụng định dạng đẹp để dễ nhìn khi gỡ lỗi
                 jsonRequest = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestNode);
-                logger.info("Final JSON request with pretty printing:\n" + jsonRequest);
+                logger.info("Yêu cầu JSON cuối cùng với định dạng đẹp:\n" + jsonRequest);
             } catch (Exception e) {
                 logger.severe("Lỗi khi chuyển đổi request thành JSON: " + e.getMessage());
                 throw new RuntimeException("Không thể chuyển đổi request", e);
@@ -829,12 +882,12 @@ public class VertexAIService {
             
             // Ghi lại chi tiết request để gỡ lỗi
             byte[] requestBytes = jsonRequest.getBytes(StandardCharsets.UTF_8);
-            logger.info("Sending request bytes (length=" + requestBytes.length + ")");
+            logger.info("Đang gửi yêu cầu (độ dài=" + requestBytes.length + " byte)");
             
             // Ghi lại toàn bộ chi tiết request để gỡ lỗi
-            logger.info("COMPLETE REQUEST DETAILS:");
+            logger.info("CHI TIẾT YÊU CẦU ĐẦY ĐỦ:");
             logger.info("URL: " + apiUrl);
-            logger.info("Method: POST");
+            logger.info("Phương thức: POST");
             logger.info("Headers:");
             logger.info("  Content-Type: application/json; charset=UTF-8");
             logger.info("  Accept: application/json");
@@ -848,7 +901,7 @@ public class VertexAIService {
             }
 
             int statusCode = connection.getResponseCode();
-            logger.info("API response status: " + statusCode);
+            logger.info("Mã trạng thái phản hồi API: " + statusCode);
             
             String responseBody;
             
@@ -863,7 +916,7 @@ public class VertexAIService {
                     }
                     responseBody = response.toString();
                 }
-                logger.info("API Success Response: " + responseBody.substring(0, Math.min(100, responseBody.length())) + "...");
+                logger.info("Phản hồi API thành công: " + responseBody.substring(0, Math.min(100, responseBody.length())) + "...");
             } else {
                 // Đọc error response
                 try (BufferedReader reader = new BufferedReader(
@@ -877,18 +930,18 @@ public class VertexAIService {
                     }
                     responseBody = response.toString();
                 }
-                logger.severe("API Error Status: " + statusCode);
-                logger.severe("API Error Response: " + responseBody);
+                logger.severe("Trạng thái lỗi API: " + statusCode);
+                logger.severe("Phản hồi lỗi API: " + responseBody);
                 
                 // Phân tích lỗi chi tiết và log thông tin request gây lỗi
                 try {
                     JsonNode errorNode = objectMapper.readTree(responseBody);
                     if (errorNode.has("error") && errorNode.get("error").has("message")) {
                         String errorMessage = errorNode.get("error").get("message").asText();
-                        logger.severe("API Error Message: " + errorMessage);
+                        logger.severe("Thông báo lỗi API: " + errorMessage);
                         
                         // Log the request that caused the error for debugging
-                        logger.severe("Request that caused error: " + jsonRequest);
+                        logger.severe("Yêu cầu gây ra lỗi: " + jsonRequest);
                         
                         if (errorMessage.contains("format") || errorMessage.contains("schema")) {
                             logger.severe("Có vẻ là LỖI ĐỊNH DẠNG. Kiểm tra cấu trúc JSON.");
@@ -906,11 +959,11 @@ public class VertexAIService {
             }
 
             long endTime = System.currentTimeMillis();
-            logger.info("Embedding API call took: " + (endTime - startTime) + "ms");
+            logger.info("Thời gian gọi API embedding: " + (endTime - startTime) + "ms");
 
             // Xử lý response JSON
             if (responseBody != null && !responseBody.isEmpty()) {
-                logger.info("Response received: " + responseBody.substring(0, Math.min(100, responseBody.length())) + "...");
+                logger.info("Đã nhận phản hồi: " + responseBody.substring(0, Math.min(100, responseBody.length())) + "...");
                 
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode rootNode = mapper.readTree(responseBody);
@@ -918,9 +971,9 @@ public class VertexAIService {
                 if (rootNode.has("predictions") && rootNode.get("predictions").size() > 0) {
                     JsonNode prediction = rootNode.get("predictions").get(0);
                     
-                    // Format réponse pour text-embedding-005
+                    // Định dạng phản hồi cho text-embedding-005
                     if (prediction.has("embeddings") && prediction.get("embeddings").has("values")) {
-                        // Format pour text-embedding-005
+                        // Định dạng cho text-embedding-005
                         JsonNode valuesNode = prediction.get("embeddings").get("values");
                         float[] embedding = new float[valuesNode.size()];
                         
@@ -937,7 +990,7 @@ public class VertexAIService {
                             embeddingCache.put(cacheKey, embedding);
                         }
 
-                        logger.info("Successfully created embedding with " + embedding.length + " dimensions using embeddings.values format");
+                        logger.info("Đã tạo thành công vector nhúng với " + embedding.length + " chiều sử dụng định dạng embeddings.values");
                         return embedding;
                     }
                     else if (prediction.has("values")) {
@@ -958,28 +1011,28 @@ public class VertexAIService {
                             embeddingCache.put(cacheKey, embedding);
                         }
                         
-                        logger.info("Successfully created embedding with " + embedding.length + " dimensions using values format");
+                        logger.info("Đã tạo thành công vector nhúng với " + embedding.length + " chiều sử dụng định dạng values");
                         return embedding;
                     }
                     // In ra cấu trúc JSON response để debug
-                    logger.warning("Unexpected JSON response structure: " + prediction.toString());
+                    logger.warning("Cấu trúc JSON phản hồi không mong đợi: " + prediction.toString());
                 } else {
-                    logger.warning("Missing predictions in response - checking full response: " + responseBody);
+                    logger.warning("Thiếu predictions trong phản hồi - kiểm tra phản hồi đầy đủ: " + responseBody);
                 }
                 
-                logger.warning("Invalid response format from embedding API: " + responseBody);
+                logger.warning("Định dạng phản hồi không hợp lệ từ API embedding: " + responseBody);
             } else {
-                logger.warning("Received null or empty response from embedding API");
+                logger.warning("Nhận phản hồi null hoặc rỗng từ API embedding");
             }
 
             // Nếu không thành công, sử dụng embedding đơn giản
-            logger.warning("Failed to create embedding via API, using fallback method");
+            logger.warning("Không thể tạo embedding qua API, sử dụng phương thức dự phòng");
             return createFallbackEmbedding(finalText);
             
         } catch (Exception e) {
-            logger.severe("Error creating embedding: " + e.getMessage());
+            logger.severe("Lỗi khi tạo embedding: " + e.getMessage());
             if (e.getCause() != null) {
-                logger.severe("Root cause: " + e.getCause().getMessage());
+                logger.severe("Nguyên nhân gốc: " + e.getCause().getMessage());
             }
             // Ghi traceback đầy đủ vào log
             StringWriter sw = new StringWriter();
@@ -1044,48 +1097,45 @@ public class VertexAIService {
         }
     }
 
-    private boolean isAccessTokenExpired() {
-        long currentTimeSeconds = System.currentTimeMillis() / 1000;
-        boolean isExpired = accessToken == null || currentTimeSeconds >= tokenExpirationTime;
-        
-        // Thêm buffer 5 phút để tránh sử dụng token gần hết hạn
-        if (!isExpired && tokenExpirationTime - currentTimeSeconds < 300) {
-            logger.info("Token sắp hết hạn (còn " + (tokenExpirationTime - currentTimeSeconds) + " giây), coi như đã hết hạn");
-            return true;
-        }
-        
-        return isExpired;
-    }
-
     /**
-     * Get project ID
+     * Lấy ID dự án
+     * @return ID dự án đang được sử dụng
      */
     public String getProjectId() {
         return projectId;
     }
     
     /**
-     * Get location
+     * Lấy vị trí (location) của dịch vụ
+     * @return Vị trí dịch vụ (region) đang được sử dụng
      */
     public String getLocation() {
         return location;
     }
     
     /**
-     * Get embedding model name
-     * @return The current embedding model name
+     * Lấy tên của mô hình vector nhúng
+     * @return Tên của mô hình vector nhúng hiện tại
      */
     public String getEmbeddingModelName() {
         return embeddingModelName;
     }
     
     /**
-     * Get access token (for test purposes only)
+     * Lấy token truy cập hiện tại (chỉ dùng cho mục đích kiểm thử)
+     * @return Token truy cập OAuth hiện tại
      */
     public String getCurrentAccessToken() {
         return accessToken;
     }
 
+    /**
+     * Chuyển đổi mảng byte thành chuỗi hex
+     * Hữu ích cho việc gỡ lỗi khi làm việc với mã hóa UTF-8
+     * 
+     * @param bytes Mảng byte cần chuyển đổi
+     * @return Chuỗi hex tương ứng với mảng byte
+     */
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -1095,12 +1145,13 @@ public class VertexAIService {
     }
 
     /**
-     * Clear the embedding cache to ensure consistent dimensions
+     * Xóa bộ nhớ đệm vector nhúng để đảm bảo kích thước nhất quán
+     * Hữu ích khi chuyển đổi giữa các mô hình có kích thước vector khác nhau
      */
     public void clearEmbeddingCache() {
         int size = embeddingCache.size();
         embeddingCache.clear();
-        logger.info("Cleared embedding cache (" + size + " entries)");
+        logger.info("Đã xóa bộ nhớ đệm vector nhúng (" + size + " phần tử)");
     }
 
 }

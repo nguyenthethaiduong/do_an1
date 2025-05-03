@@ -21,6 +21,11 @@ import java.util.logging.Logger;
 import aidhkm.dhkm16a1hn.model.Document;
 import aidhkm.dhkm16a1hn.repository.DocumentRepository;
 
+/**
+ * Dịch vụ xử lý văn bản (file TXT)
+ * Cung cấp các chức năng để kiểm tra, đọc, xử lý và trích xuất nội dung
+ * từ file văn bản và tạo embeddings cho tìm kiếm ngữ nghĩa
+ */
 @Service
 public class TextService {
     private static final Logger logger = Logger.getLogger(TextService.class.getName());
@@ -41,6 +46,10 @@ public class TextService {
     @Autowired
     private FileProcessingService fileProcessingService;
 
+    /**
+     * Constructor của TextService
+     * Khởi tạo thư mục lưu trữ file nếu chưa tồn tại
+     */
     public TextService() {
         try {
             if (!Files.exists(uploadDir)) {
@@ -54,6 +63,9 @@ public class TextService {
 
     /**
      * Kiểm tra tính hợp lệ của file TXT
+     * Phương thức này kiểm tra các điều kiện: file không rỗng, định dạng .txt,
+     * loại nội dung phù hợp và kích thước không vượt quá giới hạn
+     * 
      * @param file File cần kiểm tra
      * @return Thông báo lỗi hoặc null nếu file hợp lệ
      */
@@ -82,6 +94,12 @@ public class TextService {
 
     /**
      * Xử lý file TXT: lưu file, đọc nội dung và tạo embedding
+     * Luồng xử lý:
+     * 1. Kiểm tra tính hợp lệ của file
+     * 2. Lưu file với tên duy nhất
+     * 3. Đọc nội dung văn bản
+     * 4. Xử lý nội dung và tạo embedding
+     * 
      * @param file MultipartFile từ request
      * @param documentName Tên tài liệu
      * @return Kết quả xử lý với thông tin về tiến trình và lỗi
@@ -146,8 +164,11 @@ public class TextService {
 
     /**
      * Đọc nội dung file TXT
+     * Sử dụng BufferedReader để đọc từng dòng từ file và xây dựng chuỗi nội dung
+     * 
      * @param file MultipartFile đã tải lên
      * @return Nội dung văn bản
+     * @throws IOException Nếu có lỗi khi đọc file
      */
     private String readTxtContent(MultipartFile file) throws IOException {
         StringBuilder content = new StringBuilder();
@@ -163,6 +184,8 @@ public class TextService {
 
     /**
      * Xử lý nội dung văn bản và tạo embedding
+     * Phương thức này ủy quyền việc xử lý cho FileProcessingService
+     * 
      * @param content Nội dung văn bản
      * @param documentName Tên tài liệu
      * @return Số lượng đoạn văn bản đã xử lý
@@ -174,56 +197,101 @@ public class TextService {
     
     /**
      * Đối tượng lưu kết quả xử lý và báo cáo tiến trình
+     * Lớp nội bộ để đóng gói thông tin về kết quả và tiến trình xử lý file
      */
     public static class ProcessResult {
         private boolean success;
         private String message;
-        private int progress; // 0-100%
+        private int progress;
         private String savedFilePath;
         private int extractedSegments;
         
+        /**
+         * Constructor mặc định
+         * Khởi tạo các giá trị ban đầu
+         */
         public ProcessResult() {
             this.success = false;
             this.progress = 0;
             this.extractedSegments = 0;
         }
 
+        /**
+         * Kiểm tra xem quá trình xử lý có thành công không
+         * @return true nếu thành công, false nếu thất bại
+         */
         public boolean isSuccess() {
             return success;
         }
 
+        /**
+         * Đặt trạng thái thành công của quá trình xử lý
+         * @param success Trạng thái cần đặt
+         */
         public void setSuccess(boolean success) {
             this.success = success;
         }
 
+        /**
+         * Lấy thông báo kết quả hoặc lỗi
+         * @return Thông báo kết quả hoặc lỗi
+         */
         public String getMessage() {
             return message;
         }
 
+        /**
+         * Đặt thông báo kết quả hoặc lỗi
+         * @param message Thông báo cần đặt
+         */
         public void setMessage(String message) {
             this.message = message;
         }
 
+        /**
+         * Lấy tiến trình xử lý (0-100%)
+         * @return Giá trị tiến trình
+         */
         public int getProgress() {
             return progress;
         }
 
+        /**
+         * Đặt tiến trình xử lý
+         * @param progress Giá trị tiến trình (0-100%)
+         */
         public void setProgress(int progress) {
             this.progress = progress;
         }
 
+        /**
+         * Lấy đường dẫn file đã lưu
+         * @return Đường dẫn file
+         */
         public String getSavedFilePath() {
             return savedFilePath;
         }
 
+        /**
+         * Đặt đường dẫn file đã lưu
+         * @param savedFilePath Đường dẫn cần đặt
+         */
         public void setSavedFilePath(String savedFilePath) {
             this.savedFilePath = savedFilePath;
         }
 
+        /**
+         * Lấy số lượng đoạn văn bản đã trích xuất
+         * @return Số lượng đoạn
+         */
         public int getExtractedSegments() {
             return extractedSegments;
         }
 
+        /**
+         * Đặt số lượng đoạn văn bản đã trích xuất
+         * @param extractedSegments Số lượng đoạn
+         */
         public void setExtractedSegments(int extractedSegments) {
             this.extractedSegments = extractedSegments;
         }

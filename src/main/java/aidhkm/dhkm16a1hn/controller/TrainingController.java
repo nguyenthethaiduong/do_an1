@@ -22,6 +22,10 @@ import aidhkm.dhkm16a1hn.repository.EmbeddingRepository;
 import aidhkm.dhkm16a1hn.repository.DocumentRepository;
 import aidhkm.dhkm16a1hn.service.ChatService;
 
+/**
+ * Controller quản lý các thao tác liên quan đến huấn luyện, quản lý tài liệu và xử lý vector
+ * Cung cấp các endpoint để tải lên, liệt kê, xóa tài liệu và tái tạo vector nhúng
+ */
 @Controller
 @RequestMapping("/training")
 public class TrainingController {
@@ -46,13 +50,26 @@ public class TrainingController {
     @Autowired
     private ChatService chatService;
 
-    // Hiển thị trang upload/training
+    /**
+     * Hiển thị trang upload/training
+     * Phương thức này trả về template HTML cho trang tải lên tài liệu
+     * 
+     * @return Tên template HTML để hiển thị
+     */
     @GetMapping
     public String showTrainingPage() {
         return "upload";
     }
 
-    // Xử lý upload tài liệu text
+    /**
+     * Xử lý upload tài liệu text
+     * Phương thức này nhận nội dung văn bản được gửi lên từ form và lưu vào cơ sở dữ liệu
+     * 
+     * @param name Tên tài liệu
+     * @param content Nội dung tài liệu
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
+     */
     @PostMapping("/upload")
     public String uploadDocument(@RequestParam String name, @RequestParam String content, Model model) {
         trainingService.saveDocument(name, content);
@@ -60,7 +77,15 @@ public class TrainingController {
         return "upload";
     }
     
-    // Thêm phương thức xử lý upload file
+    /**
+     * Xử lý upload file
+     * Phương thức này nhận file được gửi lên, đọc nội dung và lưu vào cơ sở dữ liệu
+     * 
+     * @param file File được tải lên
+     * @param name Tên tài liệu
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
+     */
     @PostMapping("/upload-file")
     public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam String name, Model model) {
         if (file.isEmpty()) {
@@ -88,7 +113,13 @@ public class TrainingController {
         return "upload";
     }
 
-    // Lấy danh sách tài liệu
+    /**
+     * Lấy và hiển thị danh sách tài liệu
+     * Phương thức này truy vấn danh sách tài liệu từ cơ sở dữ liệu và hiển thị trong view
+     * 
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
+     */
     @GetMapping("/documents")
     public String listDocuments(Model model) {
         List<Document> documents = trainingService.getAllDocuments();
@@ -103,7 +134,13 @@ public class TrainingController {
         return "documents";
     }
     
-    // API xóa tài liệu
+    /**
+     * API xóa tài liệu
+     * Phương thức này xóa tài liệu theo ID và xóa các cache liên quan
+     * 
+     * @param id ID của tài liệu cần xóa
+     * @return Kết quả xóa tài liệu dưới dạng JSON
+     */
     @DeleteMapping("/documents/{id}")
     @ResponseBody
     public Map<String, Object> deleteDocument(@PathVariable Long id) {
@@ -124,6 +161,13 @@ public class TrainingController {
         return response;
     }
 
+    /**
+     * Khởi tạo lại toàn bộ vector cho tất cả tài liệu
+     * Phương thức này gọi dịch vụ NLP để tạo lại vector nhúng cho tất cả tài liệu
+     * 
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
+     */
     @GetMapping("/reinitialize-vectors")
     public String reinitializeVectors(Model model) {
         try {
@@ -148,18 +192,22 @@ public class TrainingController {
     }
     
     /**
-     * Endpoint to regenerate all vectors with consistent dimensions
-     * This uses the new regenerateAllVectors method in VectorService
+     * Tái tạo lại tất cả vector với kích thước nhất quán
+     * Phương thức này sử dụng chức năng regenerateAllVectors trong VectorService
+     * để tái tạo vector có kích thước đồng nhất
+     * 
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
      */
     @GetMapping("/regenerate-vectors")
     public String regenerateVectors(Model model) {
         try {
-            logger.info("Starting vector regeneration process");
+            logger.info("Bắt đầu quá trình tái tạo vector");
             
-            // Clear caches before regeneration
+            // Xóa cache trước khi tái tạo
             vectorService.clearAllCaches();
             
-            // Regenerate all vectors
+            // Tái tạo tất cả vector
             int regeneratedCount = vectorService.regenerateAllVectors();
             
             String message = "Đã cập nhật " + regeneratedCount + " vector embedding với kích thước nhất quán.";
@@ -181,7 +229,11 @@ public class TrainingController {
     }
 
     /**
-     * Create a sample document about phở for testing
+     * Tạo tài liệu mẫu về phở để kiểm thử
+     * Phương thức này tạo một tài liệu mẫu về phở Việt Nam để kiểm tra chức năng của hệ thống
+     * 
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
      */
     @GetMapping("/sample-pho")
     public String createSamplePho(Model model) {
@@ -215,6 +267,11 @@ public class TrainingController {
 
     /**
      * Xóa cache câu trả lời để lấy đáp án mới từ dữ liệu hiện tại
+     * Phương thức này xóa bộ nhớ đệm câu trả lời để hệ thống sẽ sử dụng dữ liệu hiện tại
+     * khi trả lời các câu hỏi tiếp theo
+     * 
+     * @param model Model để truyền dữ liệu đến view
+     * @return Tên template HTML để hiển thị
      */
     @GetMapping("/clear-response-cache")
     public String clearResponseCache(Model model) {

@@ -1,258 +1,328 @@
-package aidhkm.dhkm16a1hn.service;
+package aidhkm.dhkm16a1hn.service; // Khai báo package chứa lớp dịch vụ
 
-import aidhkm.dhkm16a1hn.model.Document;
-import aidhkm.dhkm16a1hn.model.EmbeddingVector;
-import aidhkm.dhkm16a1hn.repository.DocumentRepository;
-import aidhkm.dhkm16a1hn.repository.EmbeddingRepository;
-import aidhkm.dhkm16a1hn.util.VectorUtil;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import aidhkm.dhkm16a1hn.model.Document; // Import model Document để làm việc với dữ liệu tài liệu
+import aidhkm.dhkm16a1hn.model.EmbeddingVector; // Import model EmbeddingVector để làm việc với vector nhúng
+import aidhkm.dhkm16a1hn.repository.DocumentRepository; // Import repository để thao tác với cơ sở dữ liệu tài liệu
+import aidhkm.dhkm16a1hn.repository.EmbeddingRepository; // Import repository để thao tác với cơ sở dữ liệu vector nhúng
+import aidhkm.dhkm16a1hn.util.VectorUtil; // Import tiện ích để xử lý vector
+import org.springframework.beans.factory.annotation.Autowired; // Import annotation để tiêm phụ thuộc tự động
+import org.springframework.data.domain.PageRequest; // Import lớp để phân trang kết quả truy vấn
+import org.springframework.data.domain.Pageable; // Import interface để phân trang kết quả truy vấn
+import org.springframework.stereotype.Service; // Import annotation để đánh dấu lớp là một dịch vụ
+import org.springframework.transaction.annotation.Transactional; // Import annotation để quản lý giao dịch
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.time.LocalDateTime;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import javax.annotation.PostConstruct;
+import java.util.*; // Import các lớp tiện ích của Java
+import java.util.concurrent.ConcurrentHashMap; // Import lớp HashMap an toàn với đa luồng
+import java.util.logging.Logger; // Import Logger để ghi log
+import java.util.stream.Collectors; // Import để làm việc với luồng dữ liệu
+import java.time.LocalDateTime; // Import lớp để làm việc với ngày giờ
+import java.io.PrintWriter; // Import lớp để ghi lỗi
+import java.io.StringWriter; // Import lớp để chuyển đổi stack trace thành chuỗi
+import javax.annotation.PostConstruct; // Import annotation để đánh dấu phương thức khởi tạo sau khi bean được tạo
 
-@Service
-public class VectorService {
-    private static final Logger logger = Logger.getLogger(VectorService.class.getName());
-    private static final int CACHE_SIZE = 1000;
-    private static final float SIMILARITY_THRESHOLD = 0.20f;
-    private static final int TOP_K = 3;
+/**
+ * Dịch vụ xử lý vector nhúng cho nội dung văn bản
+ * Cung cấp các chức năng để tạo, lưu trữ, tìm kiếm và quản lý
+ * các vector nhúng để hỗ trợ tìm kiếm ngữ nghĩa
+ */
+@Service // Đánh dấu lớp này là một dịch vụ Spring để Spring container quản lý
+public class VectorService { // Khai báo lớp dịch vụ xử lý vector
+    private static final Logger logger = Logger.getLogger(VectorService.class.getName()); // Khởi tạo Logger để ghi log hoạt động của lớp
+    private static final int CACHE_SIZE = 1000; // Kích thước tối đa của cache lưu trữ vector nhúng
+    private static final float SIMILARITY_THRESHOLD = 0.20f; // Ngưỡng độ tương đồng tối thiểu để lọc kết quả tìm kiếm
+    private static final int TOP_K = 3; // Số lượng kết quả tối đa trả về khi tìm kiếm
 
     // Sử dụng LinkedHashMap cho embeddingCache với access-order để implement LRU cache
-    private final Map<String, float[]> embeddingCache = new LinkedHashMap<String, float[]>(CACHE_SIZE, 0.75f, true) {
+    private final Map<String, float[]> embeddingCache = new LinkedHashMap<String, float[]>(CACHE_SIZE, 0.75f, true) { // Cache theo cơ chế LRU (Least Recently Used)
         @Override
-        protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) {
-            return size() > CACHE_SIZE;
+        protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) { // Ghi đè phương thức để kiểm tra khi nào cần loại bỏ phần tử cũ nhất
+            return size() > CACHE_SIZE; // Loại bỏ phần tử cũ nhất khi kích thước vượt quá giới hạn
         }
     };
-    private final Map<String, List<EmbeddingVector>> documentVectorsCache = new ConcurrentHashMap<>();
+    private final Map<String, List<EmbeddingVector>> documentVectorsCache = new ConcurrentHashMap<>(); // Cache lưu trữ vector theo ID tài liệu, an toàn với đa luồng
     
     // Cache cho danh sách vectors
-    private List<EmbeddingVector> vectorsCache = null;
-    private LocalDateTime lastVectorsCacheUpdate = null;
-    private static final long VECTORS_CACHE_EXPIRY_SECONDS = 60; // Cache hết hạn sau 1 phút
+    private List<EmbeddingVector> vectorsCache = null; // Cache lưu trữ tất cả vector trong hệ thống
+    private LocalDateTime lastVectorsCacheUpdate = null; // Thời điểm cập nhật cache gần nhất
+    private static final long VECTORS_CACHE_EXPIRY_SECONDS = 60; // Cache hết hạn sau 1 phút (60 giây)
 
-    @Autowired private EmbeddingRepository embeddingRepository;
-    @Autowired private DocumentRepository documentRepository;
-    @Autowired private VertexAIService vertexAIService;
+    @Autowired private EmbeddingRepository embeddingRepository; // Repository để truy vấn và lưu trữ vector nhúng
+    @Autowired private DocumentRepository documentRepository; // Repository để truy vấn và lưu trữ tài liệu
+    @Autowired private VertexAIService vertexAIService; // Dịch vụ tương tác với Vertex AI để tạo vector nhúng
 
     /**
      * Lấy tất cả vectors từ database, có cache để tránh gọi database nhiều lần
+     * Phương thức này sử dụng cơ chế cache có thời gian hết hạn để tối ưu hiệu suất,
+     * giảm thiểu số lần truy vấn cơ sở dữ liệu khi cần danh sách vector nhúng
+     * 
+     * @return Danh sách tất cả các vector nhúng đã lưu trữ
      */
-    private List<EmbeddingVector> getAllVectors() {
+    private List<EmbeddingVector> getAllVectors() { // Phương thức lấy tất cả vector nhúng
         // Kiểm tra xem cache có tồn tại và chưa hết hạn không
-        if (vectorsCache != null && lastVectorsCacheUpdate != null) {
-            LocalDateTime now = LocalDateTime.now();
-            long secondsSinceLastUpdate = java.time.Duration.between(lastVectorsCacheUpdate, now).getSeconds();
+        if (vectorsCache != null && lastVectorsCacheUpdate != null) { // Kiểm tra nếu cache đã được khởi tạo
+            LocalDateTime now = LocalDateTime.now(); // Lấy thời gian hiện tại
+            long secondsSinceLastUpdate = java.time.Duration.between(lastVectorsCacheUpdate, now).getSeconds(); // Tính thời gian đã trôi qua kể từ lần cập nhật cuối
             
             // Nếu cache chưa hết hạn, sử dụng cache
-            if (secondsSinceLastUpdate < VECTORS_CACHE_EXPIRY_SECONDS) {
+            if (secondsSinceLastUpdate < VECTORS_CACHE_EXPIRY_SECONDS) { // Kiểm tra nếu cache chưa hết hạn
                 logger.info("Using vectors cache (" + vectorsCache.size() + " vectors, updated " + 
-                           secondsSinceLastUpdate + " seconds ago)");
-                return vectorsCache;
+                           secondsSinceLastUpdate + " seconds ago)"); // Ghi log thông tin sử dụng cache
+                return vectorsCache; // Trả về danh sách vector từ cache
             }
         }
         
         // Nếu cache không tồn tại hoặc đã hết hạn, lấy lại từ database
-        List<EmbeddingVector> allVectors = embeddingRepository.findAll();
-        vectorsCache = allVectors;
-        lastVectorsCacheUpdate = LocalDateTime.now();
-        logger.info("Updated vectors cache with " + allVectors.size() + " vectors from database");
+        List<EmbeddingVector> allVectors = embeddingRepository.findAll(); // Truy vấn tất cả vector từ cơ sở dữ liệu
+        vectorsCache = allVectors; // Cập nhật cache với dữ liệu mới
+        lastVectorsCacheUpdate = LocalDateTime.now(); // Cập nhật thời gian cập nhật cache
+        logger.info("Updated vectors cache with " + allVectors.size() + " vectors from database"); // Ghi log thông tin cập nhật cache
         
-        return allVectors;
+        return allVectors; // Trả về danh sách vector đã cập nhật
     }
     
     /**
      * Xóa cache vectors để buộc cập nhật lại từ database trong lần gọi tiếp theo
+     * Phương thức này được gọi khi có thay đổi dữ liệu vector (thêm, sửa, xóa)
+     * để đảm bảo dữ liệu cache luôn được cập nhật
      */
-    public void invalidateVectorsCache() {
-        vectorsCache = null;
-        lastVectorsCacheUpdate = null;
-        logger.info("Vectors cache invalidated");
+    public void invalidateVectorsCache() { // Phương thức xóa cache vector
+        vectorsCache = null; // Đặt cache thành null để buộc phải tải lại từ cơ sở dữ liệu
+        lastVectorsCacheUpdate = null; // Đặt thời gian cập nhật thành null
+        logger.info("Vectors cache invalidated"); // Ghi log thông tin xóa cache
     }
 
     /**
      * Tạo vector nhúng cho văn bản đã cho
      * Phương thức này sẽ xử lý vấn đề kích thước vector và vô hiệu hóa cache
+     * nếu phát hiện vector đã lưu trữ không khớp với mô hình hiện tại
+     * 
+     * @param text Văn bản cần tạo vector nhúng
+     * @return Vector nhúng đã được tạo
      */
-    public float[] createEmbedding(String text) {
-        if (text == null || text.trim().isEmpty()) {
-            return new float[0];
+    public float[] createEmbedding(String text) { // Phương thức tạo vector nhúng cho văn bản
+        if (text == null || text.trim().isEmpty()) { // Kiểm tra nếu văn bản rỗng hoặc null
+            return new float[0]; // Trả về vector rỗng
         }
         
         // Kiểm tra xem có vector nhúng trong cache không
-        String key = text.trim().toLowerCase();
-        if (embeddingCache.containsKey(key)) {
-            float[] cached = embeddingCache.get(key);
+        String key = text.trim().toLowerCase(); // Chuẩn hóa văn bản làm khóa cache (chữ thường và loại bỏ khoảng trắng thừa)
+        if (embeddingCache.containsKey(key)) { // Kiểm tra nếu vector đã có trong cache
+            float[] cached = embeddingCache.get(key); // Lấy vector từ cache
             
             // Nếu là kích thước cũ, vô hiệu hóa và tạo lại
-            if (cached.length != 768 && vertexAIService.getEmbeddingModelName().contains("text-embedding-005")) {
+            if (cached.length != 768 && vertexAIService.getEmbeddingModelName().contains("text-embedding-005")) { // Kiểm tra nếu kích thước vector không khớp với mô hình
                 logger.warning("Vector nhúng trong cache có kích thước không chính xác - dự kiến 768, nhưng có " + 
-                              cached.length + ". Đang xóa cache và tạo lại.");
-                embeddingCache.remove(key);
-                vertexAIService.clearEmbeddingCache();
+                              cached.length + ". Đang xóa cache và tạo lại."); // Ghi log cảnh báo
+                embeddingCache.remove(key); // Xóa vector không hợp lệ khỏi cache
+                vertexAIService.clearEmbeddingCache(); // Xóa cache bên trong dịch vụ Vertex AI
             } else {
-                return cached;
+                return cached; // Trả về vector đã lưu trong cache
             }
         }
         
         // Lấy vector nhúng từ VertexAIService
-        float[] embedding = vertexAIService.createEmbedding(text);
+        float[] embedding = vertexAIService.createEmbedding(text); // Gọi dịch vụ Vertex AI để tạo vector nhúng
         
         // Lưu kết quả vào cache nếu hợp lệ
-        if (embedding != null && embedding.length > 0) {
-            embeddingCache.put(key, embedding);
+        if (embedding != null && embedding.length > 0) { // Kiểm tra nếu vector được tạo thành công
+            embeddingCache.put(key, embedding); // Lưu vector vào cache
         }
         
-        return embedding;
+        return embedding; // Trả về vector nhúng đã tạo
     }
 
     /**
      * Phương pháp dự phòng để tạo vector khi API thất bại
+     * Tạo vector nhúng đơn giản dựa trên tần suất từ trong văn bản
+     * khi không thể sử dụng dịch vụ Vertex AI
+     * 
+     * @param text Văn bản cần tạo vector nhúng
+     * @return Vector nhúng đơn giản dựa trên tần suất từ
      */
-    private float[] createFallbackEmbedding(String text) {
+    private float[] createFallbackEmbedding(String text) { // Phương thức tạo vector dự phòng
         try {
-            text = normalizeText(text);
-            float[] vector = new float[300];
-            Arrays.stream(text.split("\\s+"))
-                .filter(word -> !word.isEmpty())
-                .forEach(word -> {
-                    int hash = Math.abs(word.hashCode());
-                    int index = hash % 300;
-                    vector[index]++;
+            text = normalizeText(text); // Chuẩn hóa văn bản đầu vào
+            float[] vector = new float[300]; // Khởi tạo vector với kích thước 300
+            Arrays.stream(text.split("\\s+")) // Tách văn bản thành các từ dựa trên khoảng trắng
+                .filter(word -> !word.isEmpty()) // Lọc bỏ các từ rỗng
+                .forEach(word -> { // Xử lý từng từ
+                    int hash = Math.abs(word.hashCode()); // Tính giá trị băm của từ
+                    int index = hash % 300; // Tính chỉ số dựa trên giá trị băm (giới hạn trong phạm vi 0-299)
+                    vector[index]++; // Tăng giá trị tại chỉ số tương ứng với từ
                 });
-            return normalizeVector(vector);
-        } catch (Exception e) {
-            logger.severe("Error creating fallback embedding: " + e.getMessage());
-            return createRandomVector(300);
+            return normalizeVector(vector); // Chuẩn hóa vector trước khi trả về
+        } catch (Exception e) { // Bắt ngoại lệ nếu có lỗi
+            logger.severe("Error creating fallback embedding: " + e.getMessage()); // Ghi log lỗi
+            return createRandomVector(300); // Tạo vector ngẫu nhiên nếu xảy ra lỗi
         }
     }
 
     /**
      * Tạo vector ngẫu nhiên với kích thước cho trước
+     * Vector ngẫu nhiên được sử dụng khi không thể tạo vector
+     * bằng phương pháp thông thường hoặc dự phòng
+     * 
+     * @param dimension Kích thước của vector cần tạo
+     * @return Vector ngẫu nhiên đã được chuẩn hóa
      */
-    private float[] createRandomVector(int dimension) {
-        float[] vector = new float[dimension];
-        Random random = new Random();
+    private float[] createRandomVector(int dimension) { // Phương thức tạo vector ngẫu nhiên
+        float[] vector = new float[dimension]; // Khởi tạo vector với kích thước cho trước
+        Random random = new Random(); // Khởi tạo đối tượng Random để tạo số ngẫu nhiên
 
-        for (int i = 0; i < dimension; i++) {
-            vector[i] = random.nextFloat() * 2 - 1; // Giá trị từ -1 đến 1
+        for (int i = 0; i < dimension; i++) { // Duyệt qua từng phần tử của vector
+            vector[i] = random.nextFloat() * 2 - 1; // Gán giá trị ngẫu nhiên trong khoảng -1 đến 1
         }
 
-        return normalizeVector(vector);
+        return normalizeVector(vector); // Chuẩn hóa vector trước khi trả về
     }
 
-    private String normalizeText(String text) {
-        if (text == null) {
-            return "";
+    /**
+     * Chuẩn hóa văn bản đầu vào để cải thiện chất lượng vector
+     * Quá trình chuẩn hóa bao gồm: chuyển về chữ thường, loại bỏ
+     * dấu câu, ký tự đặc biệt và khoảng trắng thừa
+     * 
+     * @param text Văn bản cần chuẩn hóa
+     * @return Văn bản đã được chuẩn hóa
+     */
+    private String normalizeText(String text) { // Phương thức chuẩn hóa văn bản
+        if (text == null) { // Kiểm tra nếu văn bản là null
+            return ""; // Trả về chuỗi rỗng
         }
 
         // Chuyển về chữ thường
-        text = text.toLowerCase();
+        text = text.toLowerCase(); // Chuyển tất cả ký tự thành chữ thường
 
         // Loại bỏ dấu câu và ký tự đặc biệt
-        text = text.replaceAll("[^a-z0-9\\s]", " ");
+        text = text.replaceAll("[^a-z0-9\\s]", " "); // Thay thế tất cả ký tự không phải chữ cái, số hoặc khoảng trắng bằng khoảng trắng
 
         // Loại bỏ khoảng trắng thừa
-        text = text.replaceAll("\\s+", " ").trim();
+        text = text.replaceAll("\\s+", " ").trim(); // Thay thế nhiều khoảng trắng liên tiếp bằng một khoảng trắng và loại bỏ khoảng trắng ở đầu/cuối
 
-        return text;
+        return text; // Trả về văn bản đã chuẩn hóa
     }
 
-    private float[] normalizeVector(float[] vector) {
-        float magnitude = 0.0f;
-        for (float v : vector) {
-            magnitude += v * v;
+    /**
+     * Chuẩn hóa vector để có độ dài bằng 1 (đơn vị hóa)
+     * Quá trình này giúp các vector có thể so sánh với nhau
+     * dễ dàng hơn bằng phép đo cosine similarity
+     * 
+     * @param vector Vector cần chuẩn hóa
+     * @return Vector đã được chuẩn hóa
+     */
+    private float[] normalizeVector(float[] vector) { // Phương thức chuẩn hóa vector
+        float magnitude = 0.0f; // Khởi tạo biến lưu độ lớn của vector
+        for (float v : vector) { // Duyệt qua từng phần tử của vector
+            magnitude += v * v; // Cộng dồn bình phương của mỗi phần tử
         }
-        magnitude = (float) Math.sqrt(magnitude);
+        magnitude = (float) Math.sqrt(magnitude); // Tính căn bậc hai để có độ lớn của vector
 
-        if (magnitude > 0) {
-            for (int i = 0; i < vector.length; i++) {
-                vector[i] /= magnitude;
+        if (magnitude > 0) { // Kiểm tra nếu độ lớn khác 0
+            for (int i = 0; i < vector.length; i++) { // Duyệt qua từng phần tử của vector
+                vector[i] /= magnitude; // Chia mỗi phần tử cho độ lớn để chuẩn hóa
             }
         }
-        return vector;
+        return vector; // Trả về vector đã chuẩn hóa
     }
 
     /**
      * Tìm thông tin liên quan nhất dựa trên vector nhúng của câu hỏi
-     * @param questionVector vector nhúng của câu hỏi
-     * @return danh sách các đoạn văn bản liên quan
+     * Phương thức này tìm kiếm các đoạn văn bản có độ tương đồng cao nhất
+     * với vector nhúng của câu hỏi, giúp cung cấp thông tin phù hợp
+     * để trả lời câu hỏi của người dùng
+     * 
+     * @param questionVector Vector nhúng của câu hỏi
+     * @return Danh sách các đoạn văn bản liên quan nhất
      */
-    public List<String> findMostRelevantInfo(float[] questionVector) {
+    public List<String> findMostRelevantInfo(float[] questionVector) { // Phương thức tìm thông tin liên quan nhất
         try {
-            logger.info("Finding most relevant information for the question vector");
+            logger.info("Tìm kiếm thông tin liên quan nhất cho vector câu hỏi"); // Ghi log thông tin bắt đầu tìm kiếm
 
-            List<EmbeddingVector> allVectors = getAllVectors();
-            if (allVectors.isEmpty()) {
-                logger.info("No embedding vectors found in database");
-                return new ArrayList<>();
+            List<EmbeddingVector> allVectors = getAllVectors(); // Lấy tất cả vector nhúng từ cơ sở dữ liệu (hoặc từ cache)
+            if (allVectors.isEmpty()) { // Kiểm tra nếu không có vector nào
+                logger.info("Không tìm thấy vector nhúng nào trong cơ sở dữ liệu"); // Ghi log thông tin không tìm thấy vector
+                return new ArrayList<>(); // Trả về danh sách rỗng
             }
 
             // Tìm top 5 vector có độ tương đồng cao nhất
-            List<ScoredVector> scoredVectors = new ArrayList<>();
-            for (EmbeddingVector vector : allVectors) {
-                float similarity = VectorUtil.cosineSimilarity(questionVector, vector.getVectorData());
-                if (similarity > SIMILARITY_THRESHOLD) { // Sử dụng ngưỡng từ hằng số
-                    scoredVectors.add(new ScoredVector(vector, similarity));
+            List<ScoredVector> scoredVectors = new ArrayList<>(); // Khởi tạo danh sách để lưu vector kèm điểm số
+            for (EmbeddingVector vector : allVectors) { // Duyệt qua tất cả vector
+                float similarity = VectorUtil.cosineSimilarity(questionVector, vector.getVectorData()); // Tính độ tương đồng cosine
+                if (similarity > SIMILARITY_THRESHOLD) { // Kiểm tra nếu độ tương đồng vượt ngưỡng
+                    scoredVectors.add(new ScoredVector(vector, similarity)); // Thêm vector và điểm số vào danh sách
                 }
             }
 
             // Sắp xếp theo độ tương đồng giảm dần
-            scoredVectors.sort((v1, v2) -> Float.compare(v2.getScore(), v1.getScore()));
+            scoredVectors.sort((v1, v2) -> Float.compare(v2.getScore(), v1.getScore())); // Sắp xếp danh sách vector theo điểm số giảm dần
 
             // Lấy top 5 kết quả
-            List<String> results = new ArrayList<>();
-            for (int i = 0; i < Math.min(5, scoredVectors.size()); i++) {
-                EmbeddingVector vector = scoredVectors.get(i).getVector();
-                results.add(vector.getDocumentId() + " | " + vector.getSegment());
+            List<String> results = new ArrayList<>(); // Khởi tạo danh sách kết quả
+            for (int i = 0; i < Math.min(5, scoredVectors.size()); i++) { // Duyệt qua tối đa 5 vector có điểm cao nhất
+                EmbeddingVector vector = scoredVectors.get(i).getVector(); // Lấy vector từ đối tượng ScoredVector
+                results.add(vector.getDocumentId() + " | " + vector.getSegment()); // Thêm ID tài liệu và đoạn văn bản vào kết quả
             }
 
-            return results;
-        } catch (Exception e) {
-            logger.severe("Error finding relevant information: " + e.getMessage());
-            return new ArrayList<>();
+            return results; // Trả về danh sách kết quả
+        } catch (Exception e) { // Bắt ngoại lệ nếu có lỗi
+            logger.severe("Lỗi khi tìm kiếm thông tin liên quan: " + e.getMessage()); // Ghi log lỗi
+            return new ArrayList<>(); // Trả về danh sách rỗng trong trường hợp có lỗi
         }
     }
 
     /**
      * Lớp helper để lưu trữ vector và điểm tương đồng
+     * Lớp này giúp ghép cặp một vector nhúng với điểm số tương đồng
+     * của nó, thuận tiện cho việc sắp xếp và lựa chọn kết quả
      */
-    private static class ScoredVector {
-        private final EmbeddingVector vector;
-        private final float score;
+    private static class ScoredVector { // Lớp nội bộ để lưu trữ vector kèm điểm số
+        private final EmbeddingVector vector; // Vector nhúng
+        private final float score; // Điểm số đánh giá mức độ tương đồng
 
-        public ScoredVector(EmbeddingVector vector, float score) {
-            this.vector = vector;
-            this.score = score;
+        /**
+         * Khởi tạo đối tượng ScoredVector
+         * 
+         * @param vector Vector nhúng cần lưu trữ
+         * @param score Điểm số tương đồng của vector
+         */
+        public ScoredVector(EmbeddingVector vector, float score) { // Constructor của lớp ScoredVector
+            this.vector = vector; // Gán vector nhúng
+            this.score = score; // Gán điểm số
         }
 
-        public EmbeddingVector getVector() {
-            return vector;
+        /**
+         * Lấy vector nhúng
+         * 
+         * @return Vector nhúng đã lưu trữ
+         */
+        public EmbeddingVector getVector() { // Phương thức getter cho vector
+            return vector; // Trả về vector nhúng
         }
 
-        public float getScore() {
-            return score;
+        /**
+         * Lấy điểm số tương đồng
+         * 
+         * @return Điểm số tương đồng đã lưu trữ
+         */
+        public float getScore() { // Phương thức getter cho điểm số
+            return score; // Trả về điểm số
         }
     }
 
     /**
      * Lưu đoạn văn bản và vector embedding vào database
+     * Phương thức này lưu trữ một đoạn văn bản và vector nhúng tương ứng
+     * vào cơ sở dữ liệu, với kiểm tra để tránh lưu trùng lặp
+     * 
+     * @param segment Đoạn văn bản cần lưu trữ
+     * @param vectorData Vector nhúng tương ứng với đoạn văn bản
+     * @param documentId ID của tài liệu chứa đoạn văn bản
+     * @return true nếu lưu thành công, false nếu thất bại
      */
     @Transactional
     public boolean saveEmbeddingVector(String segment, float[] vectorData, Long documentId) {
         try {
             if (segment == null || segment.trim().isEmpty() || vectorData == null || vectorData.length == 0) {
-                logger.warning("Invalid input for saveEmbeddingVector");
+                logger.warning("Dữ liệu đầu vào không hợp lệ cho saveEmbeddingVector");
                 return false;
             }
 
@@ -265,7 +335,7 @@ public class VectorService {
             // Kiểm tra xem vector đã tồn tại chưa
             List<EmbeddingVector> existingVectors = embeddingRepository.findBySegment(segmentToStore);
             if (!existingVectors.isEmpty()) {
-                logger.info("Vector already exists for segment, skipping save");
+                logger.info("Vector đã tồn tại cho đoạn văn bản này, bỏ qua việc lưu");
                 return true;
             }
 
@@ -281,11 +351,11 @@ public class VectorService {
             // Vô hiệu hóa cache khi có sự thay đổi dữ liệu
             invalidateVectorsCache();
             
-            logger.info("Successfully saved embedding vector for segment: " + segmentToStore.substring(0, Math.min(30, segmentToStore.length())) + "...");
+            logger.info("Đã lưu thành công vector nhúng cho đoạn văn bản: " + segmentToStore.substring(0, Math.min(30, segmentToStore.length())) + "...");
 
             return true;
         } catch (Exception e) {
-            logger.severe("Error saving embedding vector: " + e.getMessage());
+            logger.severe("Lỗi khi lưu vector nhúng: " + e.getMessage());
             return false;
         }
     }
@@ -363,6 +433,9 @@ public class VectorService {
 
     /**
      * Tìm kiếm các câu tương tự với câu hỏi
+     * Phương thức này so sánh vector nhúng của câu hỏi với các vector
+     * trong cơ sở dữ liệu để tìm những đoạn văn bản tương tự nhất
+     * 
      * @param question Câu hỏi cần tìm kiếm
      * @param limit Số lượng câu tương tự cần trả về
      * @return Danh sách các câu tương tự
@@ -370,22 +443,22 @@ public class VectorService {
     public List<String> searchSimilarSentences(String question, int limit) {
         long startTime = System.currentTimeMillis();
         try {
-            logger.info("Searching for similar sentences to: " + question);
+            logger.info("Tìm kiếm các câu tương tự với: " + question);
 
             // Kiểm tra xem câu hỏi có phải là câu ngắn đơn giản không (như "ok", "được rồi", "thank you")
             if (question.length() < 15 && question.split("\\s+").length < 3) {
-                logger.info("Short conversational phrase detected, skipping vector search");
+                logger.info("Phát hiện cụm từ hội thoại ngắn, bỏ qua tìm kiếm vector");
                 return new ArrayList<>();
             }
 
             // Tạo vector embedding cho câu hỏi
             long embedStartTime = System.currentTimeMillis();
             float[] questionVector = vertexAIService.createEmbedding(question);
-            logger.info("Time to create embedding: " + (System.currentTimeMillis() - embedStartTime) + "ms");
+            logger.info("Thời gian tạo vector nhúng: " + (System.currentTimeMillis() - embedStartTime) + "ms");
 
             // Kiểm tra nếu vector rỗng (có thể do lỗi API)
             if (questionVector == null || questionVector.length == 0) {
-                logger.warning("Failed to create embedding for question: " + question);
+                logger.warning("Không thể tạo vector nhúng cho câu hỏi: " + question);
                 // Sử dụng tìm kiếm dựa trên từ khóa khi không thể tạo vector nhúng
                 return keywordBasedSearch(question, limit);
             }
@@ -396,11 +469,11 @@ public class VectorService {
             // Lấy tất cả vector từ database
             List<EmbeddingVector> allVectors = getAllVectors();
             if (allVectors.isEmpty()) {
-                logger.info("No embedding vectors found in database");
+                logger.info("Không tìm thấy vector nhúng nào trong cơ sở dữ liệu");
                 return new ArrayList<>();
             }
 
-            logger.info("Found " + allVectors.size() + " vectors in database");
+            logger.info("Tìm thấy " + allVectors.size() + " vector trong cơ sở dữ liệu");
 
             // Tạo danh sách các vector có điểm tương đồng
             List<ScoredVector> scoredVectors = new ArrayList<>();
@@ -410,8 +483,8 @@ public class VectorService {
                 float similarity = VectorUtil.cosineSimilarity(questionVector, vector.getVectorData());
 
                 // In ra log để debug
-                logger.info("Vector for segment [" + vector.getSegment().substring(0, Math.min(30, vector.getSegment().length()))
-                    + "...] has similarity: " + similarity);
+                logger.info("Vector cho đoạn [" + vector.getSegment().substring(0, Math.min(30, vector.getSegment().length()))
+                    + "...] có độ tương đồng: " + similarity);
 
                 // Chỉ thêm vào vector có điểm tương đồng cao hơn ngưỡng
                 if (similarity >= MIN_SIMILARITY) {
@@ -421,7 +494,7 @@ public class VectorService {
 
             // Nếu không tìm thấy câu tương tự nào vượt ngưỡng, thử tìm kiếm dựa trên từ khóa
             if (scoredVectors.isEmpty()) {
-                logger.warning("No sentences with similarity above threshold (" + MIN_SIMILARITY + ") found for: " + question);
+                logger.warning("Không tìm thấy câu nào có độ tương đồng trên ngưỡng (" + MIN_SIMILARITY + ") cho: " + question);
                 return keywordBasedSearch(question, limit);
             }
 
@@ -436,7 +509,7 @@ public class VectorService {
             // In ra các điểm tương đồng để debug
             for (int i = 0; i < topResults.size(); i++) {
                 ScoredVector sv = topResults.get(i);
-                logger.info("Match #" + (i + 1) + ": score=" + sv.getScore() + ", text=" +
+                logger.info("Kết quả #" + (i + 1) + ": điểm=" + sv.getScore() + ", văn bản=" +
                            sv.getVector().getSegment().substring(0, Math.min(50, sv.getVector().getSegment().length())) + "...");
             }
 
@@ -446,10 +519,10 @@ public class VectorService {
                     .collect(Collectors.toList());
 
             long totalTime = System.currentTimeMillis() - startTime;
-            logger.info("Total search time: " + totalTime + "ms, found " + similarSentences.size() + " matches");
+            logger.info("Tổng thời gian tìm kiếm: " + totalTime + "ms, tìm thấy " + similarSentences.size() + " kết quả khớp");
             return similarSentences;
         } catch (Exception e) {
-            logger.severe("Error searching similar sentences: " + e.getMessage());
+            logger.severe("Lỗi khi tìm kiếm câu tương tự: " + e.getMessage());
             e.printStackTrace();
             return new ArrayList<>();
         }
@@ -457,12 +530,15 @@ public class VectorService {
 
     /**
      * Tìm kiếm dựa trên từ khóa khi không thể sử dụng vector nhúng
+     * Phương thức này sử dụng tìm kiếm đơn giản dựa trên sự xuất hiện
+     * của các từ khóa trong đoạn văn bản
+     * 
      * @param question Câu hỏi cần tìm kiếm
      * @param limit Số lượng kết quả tối đa
      * @return Danh sách các đoạn văn bản tương tự
      */
     private List<String> keywordBasedSearch(String question, int limit) {
-        logger.info("Performing keyword-based search for: " + question);
+        logger.info("Thực hiện tìm kiếm dựa trên từ khóa cho: " + question);
 
         try {
             // Chuẩn bị câu hỏi
@@ -500,23 +576,26 @@ public class VectorService {
             // Trích xuất các đoạn văn bản kết quả
             List<String> results = new ArrayList<>();
             for (Map.Entry<EmbeddingVector, Integer> entry : sortedEntries) {
-                // Add a normalized score (0.3 - 0.5 range) based on keyword match count
+                // Thêm điểm số chuẩn hóa (khoảng 0.3 - 0.5) dựa trên số lượng từ khóa khớp
                 float normalizedScore = 0.3f + Math.min(0.2f, (float)entry.getValue() / 10.0f);
                 results.add("score=" + normalizedScore + " | " + entry.getKey().getSegment());
-                logger.info("Keyword match: [" + entry.getValue() + " keywords, score=" + normalizedScore + "] " +
+                logger.info("Kết quả từ khóa: [" + entry.getValue() + " từ khóa, điểm=" + normalizedScore + "] " +
                           entry.getKey().getSegment().substring(0, Math.min(100, entry.getKey().getSegment().length())) + "...");
             }
 
             return results;
 
         } catch (Exception e) {
-            logger.severe("Error in keyword search: " + e.getMessage());
+            logger.severe("Lỗi trong tìm kiếm từ khóa: " + e.getMessage());
             return new ArrayList<>();
         }
     }
 
     /**
      * Lưu nhiều embedding vector cùng lúc
+     * Phương thức này tối ưu hóa việc lưu nhiều vector cùng một lúc
+     * bằng cách sử dụng giao dịch và thao tác hàng loạt
+     * 
      * @param vectors Danh sách vector cần lưu
      * @return true nếu thành công, false nếu thất bại
      */
@@ -524,7 +603,7 @@ public class VectorService {
     public boolean saveEmbeddingVectors(List<EmbeddingVector> vectors) {
         try {
             if (vectors == null || vectors.isEmpty()) {
-                logger.warning("No vectors to save");
+                logger.warning("Không có vector nào để lưu");
                 return false;
             }
 
@@ -534,10 +613,10 @@ public class VectorService {
             // Vô hiệu hóa cache khi có sự thay đổi dữ liệu
             invalidateVectorsCache();
             
-            logger.info("Successfully saved " + vectors.size() + " embedding vectors in batch");
+            logger.info("Đã lưu thành công " + vectors.size() + " vector nhúng theo lô");
             return true;
         } catch (Exception e) {
-            logger.severe("Error saving embedding vectors in batch: " + e.getMessage());
+            logger.severe("Lỗi khi lưu các vector nhúng theo lô: " + e.getMessage());
             return false;
         }
     }
@@ -563,122 +642,122 @@ public class VectorService {
     
     @PostConstruct
     public void init() {
-        // Clear caches on startup to avoid dimension mismatches
+        // Xóa cache khi khởi động để tránh sự không khớp về kích thước
         clearAllCaches();
-        logger.info("VectorService initialized and caches cleared");
+        logger.info("VectorService đã được khởi tạo và cache đã được xóa");
     }
 
     /**
-     * Regenerate all embedding vectors in the database to ensure consistent dimensions
-     * This method will:
-     * 1. Fetch all vectors from the database
-     * 2. For each vector, regenerate its embedding using the current model
-     * 3. Update the database with the new vectors
-     * 4. Clear all caches
+     * Tái tạo lại tất cả các vector nhúng trong cơ sở dữ liệu để đảm bảo kích thước nhất quán
+     * Phương thức này sẽ:
+     * 1. Lấy tất cả vector từ cơ sở dữ liệu
+     * 2. Đối với mỗi vector, tạo lại vector nhúng sử dụng mô hình hiện tại
+     * 3. Cập nhật cơ sở dữ liệu với các vector mới
+     * 4. Xóa tất cả bộ nhớ đệm
      * 
-     * @return Number of vectors regenerated
+     * @return Số lượng vector đã được tái tạo
      */
     @Transactional
     public int regenerateAllVectors() {
-        logger.info("Starting regeneration of all vectors to ensure consistent dimensions");
+        logger.info("Bắt đầu tái tạo tất cả vector để đảm bảo kích thước nhất quán");
         
         try {
-            // Get all vectors from database (bypassing cache)
+            // Lấy tất cả vector từ cơ sở dữ liệu (bỏ qua cache)
             List<EmbeddingVector> allVectors = embeddingRepository.findAll();
             
             if (allVectors.isEmpty()) {
-                logger.info("No vectors found in database to regenerate");
+                logger.info("Không tìm thấy vector nào trong cơ sở dữ liệu để tái tạo");
                 return 0;
             }
             
-            logger.info("Found " + allVectors.size() + " vectors to regenerate");
+            logger.info("Đã tìm thấy " + allVectors.size() + " vector cần tái tạo");
             int regeneratedCount = 0;
             int errorCount = 0;
             
-            // Check current model's expected dimension
+            // Kiểm tra kích thước dự kiến của mô hình hiện tại
             String currentModel = vertexAIService.getEmbeddingModelName();
             int expectedDimension = currentModel.contains("text-embedding-005") ? 768 : 128;
-            logger.info("Current embedding model: " + currentModel + " with expected dimension: " + expectedDimension);
+            logger.info("Mô hình vector nhúng hiện tại: " + currentModel + " với kích thước dự kiến: " + expectedDimension);
             
-            // Clear caches before regeneration
+            // Xóa bộ nhớ đệm trước khi tái tạo
             clearAllCaches();
             vertexAIService.clearEmbeddingCache();
             
-            // Process vectors in batches to avoid memory issues
+            // Xử lý vector theo lô để tránh vấn đề bộ nhớ
             int batchSize = 100;
             List<EmbeddingVector> currentBatch = new ArrayList<>(batchSize);
             
             for (EmbeddingVector vector : allVectors) {
                 try {
-                    // Get original text
+                    // Lấy văn bản gốc
                     String originalText = vector.getSegment();
                     
-                    // Skip if original text is missing
+                    // Bỏ qua nếu văn bản gốc bị thiếu
                     if (originalText == null || originalText.trim().isEmpty()) {
-                        logger.warning("Vector ID " + vector.getId() + " has empty text, skipping regeneration");
+                        logger.warning("Vector ID " + vector.getId() + " có văn bản trống, bỏ qua việc tái tạo");
                         continue;
                     }
                     
-                    // Check if vector already has correct dimensions
+                    // Kiểm tra xem vector đã có kích thước đúng chưa
                     if (vector.getVectorData() != null && vector.getVectorData().length == expectedDimension) {
-                        logger.info("Vector ID " + vector.getId() + " already has correct dimension (" + 
-                                   expectedDimension + "), skipping regeneration");
+                        logger.info("Vector ID " + vector.getId() + " đã có kích thước đúng (" + 
+                                   expectedDimension + "), bỏ qua việc tái tạo");
                         continue;
                     }
                     
-                    // Regenerate embedding using current model
+                    // Tạo lại vector nhúng sử dụng mô hình hiện tại
                     float[] newVector = vertexAIService.createEmbedding(originalText);
                     
-                    // Check if regeneration was successful
+                    // Kiểm tra xem việc tái tạo có thành công không
                     if (newVector == null || newVector.length == 0) {
-                        logger.warning("Failed to regenerate vector for text: " + 
+                        logger.warning("Không thể tái tạo vector cho văn bản: " + 
                                      originalText.substring(0, Math.min(50, originalText.length())) + "...");
                         errorCount++;
                         continue;
                     }
                     
-                    // Update the vector in the object
+                    // Cập nhật vector trong đối tượng
                     vector.setVectorData(newVector);
                     
-                    // Add to current batch
+                    // Thêm vào lô hiện tại
                     currentBatch.add(vector);
                     regeneratedCount++;
                     
-                    // Process batch if full
+                    // Xử lý lô nếu đã đầy
                     if (currentBatch.size() >= batchSize) {
                         embeddingRepository.saveAll(currentBatch);
-                        logger.info("Saved batch of " + currentBatch.size() + " regenerated vectors");
+                        logger.info("Đã lưu lô gồm " + currentBatch.size() + " vector đã tái tạo");
                         currentBatch.clear();
                     }
                     
-                    // Log progress periodically
+                    // Ghi log tiến trình định kỳ
                     if (regeneratedCount % 500 == 0) {
-                        logger.info("Regenerated " + regeneratedCount + " vectors so far");
+                        logger.info("Đã tái tạo " + regeneratedCount + " vector đến thời điểm hiện tại");
                     }
                     
                 } catch (Exception e) {
-                    logger.severe("Error regenerating vector ID " + vector.getId() + ": " + e.getMessage());
+                    logger.severe("Lỗi khi tái tạo vector ID " + vector.getId() + ": " + e.getMessage());
                     errorCount++;
                 }
             }
             
-            // Save any remaining vectors in the batch
+            // Lưu các vector còn lại trong lô
             if (!currentBatch.isEmpty()) {
                 embeddingRepository.saveAll(currentBatch);
-                logger.info("Saved final batch of " + currentBatch.size() + " regenerated vectors");
+                logger.info("Đã lưu lô cuối cùng gồm " + currentBatch.size() + " vector đã tái tạo");
             }
             
-            // Clear caches after regeneration
+            // Xóa bộ nhớ đệm sau khi tái tạo
             clearAllCaches();
             
-            logger.info("Vector regeneration complete: " + 
-                       regeneratedCount + " vectors regenerated, " + 
-                       errorCount + " errors encountered");
+            logger.info("Hoàn tất tái tạo vector: " + 
+                       regeneratedCount + " vector đã được tái tạo, " + 
+                       errorCount + " lỗi đã xảy ra");
             
             return regeneratedCount;
             
         } catch (Exception e) {
-            logger.severe("Error during vector regeneration: " + e.getMessage());
+            logger.severe("Lỗi trong quá trình tái tạo vector: " + e.getMessage());
             e.printStackTrace();
             return 0;
         }

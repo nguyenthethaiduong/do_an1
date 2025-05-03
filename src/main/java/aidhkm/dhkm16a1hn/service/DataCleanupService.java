@@ -9,6 +9,8 @@ import java.util.logging.Logger;
 
 /**
  * Service để tự động dọn dẹp và tối ưu hóa dữ liệu
+ * Lớp này chịu trách nhiệm quản lý các tác vụ dọn dẹp dữ liệu theo lịch trình
+ * hoặc thực hiện thủ công khi được yêu cầu
  */
 @Service
 public class DataCleanupService {
@@ -20,7 +22,9 @@ public class DataCleanupService {
     
     /**
      * Chạy định kỳ để dọn dẹp vector embeddings bị treo
-     * Chạy mỗi ngày vào lúc 2 giờ sáng
+     * Được lập lịch chạy mỗi ngày vào lúc 2 giờ sáng
+     * Vector bị treo là các vector không còn liên kết với bất kỳ tài liệu nào
+     * nhưng vẫn tồn tại trong cơ sở dữ liệu
      */
     @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
@@ -32,7 +36,10 @@ public class DataCleanupService {
     
     /**
      * Chạy thủ công để dọn dẹp vector embeddings bị treo
-     * @return Số lượng vector đã xóa
+     * Phương thức này có thể được gọi từ API hoặc giao diện quản trị
+     * khi người dùng muốn thực hiện dọn dẹp ngay lập tức
+     * 
+     * @return Số lượng vector đã xóa trong quá trình dọn dẹp
      */
     @Transactional
     public int manualCleanupOrphanedEmbeddings() {
