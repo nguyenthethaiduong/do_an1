@@ -477,6 +477,9 @@
             const startChatBtn = document.getElementById('start-chat');
             const clearChatBtn = document.getElementById('clearChat');
             
+            // Biến để theo dõi request hiện tại
+            let currentRequest = null;
+            
             // Ẩn welcome screen khi nhấn nút bắt đầu chat
             if (startChatBtn) {
                 startChatBtn.addEventListener('click', function() {
@@ -541,8 +544,36 @@
                 messageInput.value = '';
                 messageInput.style.height = 'auto';
                 
+                // Nếu có request đang xử lý, hủy nó
+                if (currentRequest) {
+                    currentRequest.abort();
+                    
+                    // Xóa typing indicator hiện tại nếu có
+                    const existingIndicator = document.querySelector('.typing-indicator')?.parentElement;
+                    if (existingIndicator) {
+                        existingIndicator.remove();
+                    }
+                    
+                    // Thêm thông báo bị ngắt vào tin nhắn AI cuối cùng (nếu có)
+                    const aiMessages = document.querySelectorAll('.ai-message');
+                    if (aiMessages.length > 0) {
+                        const lastAIMessage = aiMessages[aiMessages.length - 1];
+                        const contentElement = lastAIMessage.querySelector('.message-content');
+                        
+                        // Nếu tin nhắn cuối cùng không phải là typing indicator
+                        if (contentElement && !lastAIMessage.querySelector('.typing-indicator')) {
+                            contentElement.innerHTML += '<span class="text-muted"><br><i>(Trả lời đã bị ngắt)</i></span>';
+                        }
+                    }
+                }
+                
                 // Hiển thị đang typing
                 const typingIndicator = addTypingIndicator();
+                
+                // Tạo controller để có thể hủy request
+                const controller = new AbortController();
+                const signal = controller.signal;
+                currentRequest = controller;
                 
                 // Gửi request đến API
                 fetch('/chat/ask', {
@@ -550,7 +581,8 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ question: question })
+                    body: JSON.stringify({ question: question }),
+                    signal: signal
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -564,11 +596,18 @@
                     
                     // Hiển thị câu trả lời
                     addMessage(data.answer);
+                    
+                    // Đánh dấu request hiện tại đã hoàn thành
+                    currentRequest = null;
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    typingIndicator.remove();
-                    addMessage('Xin lỗi, có lỗi xảy ra: ' + error.message);
+                    // Chỉ xử lý lỗi nếu không phải do abort
+                    if (error.name !== 'AbortError') {
+                        console.error('Error:', error);
+                        typingIndicator.remove();
+                        addMessage('Xin lỗi, có lỗi xảy ra: ' + error.message);
+                    }
+                    // Nếu là do abort thì không làm gì cả vì đã xử lý ở trên
                 });
             }
             
