@@ -464,7 +464,7 @@
                 deleteModal.hide();
                 
                 // Gửi yêu cầu xóa
-                fetch(`/training/delete-document/${id}`, {
+                fetch(`/training/documents/${id}`, {
                     method: 'DELETE',
                 })
                 .then(response => {
