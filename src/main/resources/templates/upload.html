@@ -432,12 +432,12 @@
         <div class="upload-body">
             <form th:action="@{/training/upload-file}" method="post" enctype="multipart/form-data" id="uploadForm">
                 <div class="file-upload-area" id="dropZone">
-                    <input type="file" id="file-input" name="file" class="d-none" onchange="handleFileSelect(event)">
+                    <input type="file" id="file-input" name="file" class="d-none" onchange="handleFileSelect(event)" multiple>
                     <div class="file-upload-icon">
                         <i class="fas fa-cloud-upload-alt"></i>
                     </div>
                     <h3 class="file-upload-text">Kéo thả tài liệu hoặc nhấp để chọn</h3>
-                    <p class="file-upload-subtext">Hỗ trợ PDF, DOC, DOCX, TXT (tối đa 20MB)</p>
+                    <p class="file-upload-subtext">Hiện tại chỉ hỗ trợ file TXT (tối đa 20MB)</p>
                     <button type="button" class="file-upload-btn" onclick="document.getElementById('file-input').click()">
                         <i class="fas fa-plus-circle"></i> Chọn tài liệu
                     </button>
@@ -450,11 +450,6 @@
                 <div class="form-group">
                     <label class="form-label">Tiêu đề tài liệu (tùy chọn)</label>
                     <input type="text" class="form-control" name="name" placeholder="Nhập tiêu đề tài liệu...">
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Mô tả (tùy chọn)</label>
-                    <textarea class="form-control" name="description" rows="3" placeholder="Mô tả ngắn về tài liệu..."></textarea>
                 </div>
                 
                 <div class="form-group">

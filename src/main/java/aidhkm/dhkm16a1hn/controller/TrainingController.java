@@ -79,38 +79,97 @@ public class TrainingController {
     
     /**
      * Xử lý upload file
-     * Phương thức này nhận file được gửi lên, đọc nội dung và lưu vào cơ sở dữ liệu
+     * Phương thức này nhận các file được gửi lên, đọc nội dung và lưu vào cơ sở dữ liệu
      * 
-     * @param file File được tải lên
-     * @param name Tên tài liệu
+     * @param files Mảng các file được tải lên
+     * @param name Tên tài liệu chung
      * @param model Model để truyền dữ liệu đến view
      * @return Tên template HTML để hiển thị
      */
     @PostMapping("/upload-file")
-    public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam String name, Model model) {
-        if (file.isEmpty()) {
-            model.addAttribute("error", "Vui lòng chọn file để tải lên");
+    public String uploadFile(@RequestParam("file") MultipartFile[] files, @RequestParam String name, Model model) {
+        if (files.length == 0 || files[0].isEmpty()) {
+            model.addAttribute("error", "Vui lòng chọn ít nhất một file để tải lên");
             return "upload";
         }
 
-        try {
-            StringBuilder content = new StringBuilder();
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8));
-            
+        int successCount = 0;
+        StringBuilder errors = new StringBuilder();
+
+        for (MultipartFile file : files) {
+            try {
+                String originalFilename = file.getOriginalFilename();
+                String documentName = (name != null && !name.isEmpty()) ? 
+                        name + " - " + originalFilename : originalFilename;
+                
+                // Kiểm tra loại file và định dạng
+                String fileExtension = getFileExtension(originalFilename);
+                String content;
+                
+                // Chỉ xử lý text đơn thuần cho file TXT
+                if ("txt".equalsIgnoreCase(fileExtension)) {
+                    content = readTextFile(file);
+                } else {
+                    // Với các loại file khác, hiển thị thông báo lỗi tạm thời
+                    errors.append("Loại file ").append(fileExtension)
+                          .append(" chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT.\n");
+                    logger.warning("Unsupported file type: " + fileExtension);
+                    continue;
+                }
+                
+                if (content != null && !content.trim().isEmpty()) {
+                    trainingService.saveDocument(documentName, content);
+                    successCount++;
+                } else {
+                    errors.append("Không thể đọc nội dung từ file ").append(originalFilename).append("\n");
+                }
+                
+            } catch (Exception e) {
+                errors.append("Lỗi khi xử lý file ").append(file.getOriginalFilename())
+                      .append(": ").append(e.getMessage()).append("\n");
+                logger.severe("Lỗi khi xử lý file " + file.getOriginalFilename() + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        if (successCount > 0) {
+            model.addAttribute("message", successCount + " file đã được tải lên và AI đã học thành công!");
+        }
+        
+        if (errors.length() > 0) {
+            model.addAttribute("error", errors.toString());
+        }
+        
+        return "upload";
+    }
+    
+    /**
+     * Đọc nội dung từ text file
+     */
+    private String readTextFile(MultipartFile file) throws IOException {
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 content.append(line).append("\n");
             }
-            
-            trainingService.saveDocument(name, content.toString());
-            model.addAttribute("message", "File đã được tải lên và AI đã học!");
-            
-        } catch (IOException e) {
-            model.addAttribute("error", "Lỗi khi đọc file: " + e.getMessage());
         }
-        
-        return "upload";
+        return content.toString();
+    }
+    
+    /**
+     * Lấy phần mở rộng của file
+     */
+    private String getFileExtension(String filename) {
+        if (filename == null) {
+            return "";
+        }
+        int lastDotPosition = filename.lastIndexOf('.');
+        if (lastDotPosition == -1 || lastDotPosition == filename.length() - 1) {
+            return "";
+        }
+        return filename.substring(lastDotPosition + 1);
     }
 
     /**
