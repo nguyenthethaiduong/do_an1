@@ -1154,4 +1154,39 @@ public class VertexAIService {
         logger.info("Đã xóa bộ nhớ đệm vector nhúng (" + size + " phần tử)");
     }
 
+    /**
+     * Tạo nội dung văn bản từ prompt sử dụng Vertex AI nhưng có thời gian chờ tối đa
+     * Phương thức này là bản mở rộng của generateText, thêm cơ chế timeout
+     * để tránh chờ đợi quá lâu khi API không phản hồi
+     * 
+     * @param prompt Prompt để tạo văn bản
+     * @param timeoutSeconds Số giây tối đa chờ phản hồi
+     * @return Văn bản được tạo từ Vertex AI hoặc null nếu quá thời gian
+     */
+    public String generateTextWithTimeout(String prompt, int timeoutSeconds) {
+        // Tạo CompletableFuture để gọi API bất đồng bộ
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                return generateText(prompt);
+            } catch (Exception e) {
+                logger.severe("Error generating text with Vertex AI: " + e.getMessage());
+                e.printStackTrace();
+                return null;
+            }
+        });
+        
+        try {
+            // Chờ với timeout
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            logger.warning("Vertex AI request timed out after " + timeoutSeconds + " seconds");
+            future.cancel(true); // Hủy task nếu đang chạy
+            return null;
+        } catch (InterruptedException | ExecutionException e) {
+            logger.severe("Error while waiting for Vertex AI response: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 }

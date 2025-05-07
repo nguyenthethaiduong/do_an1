@@ -88,59 +88,102 @@ public class TrainingController {
      */
     @PostMapping("/upload-file")
     public String uploadFile(@RequestParam("file") MultipartFile[] files, @RequestParam String name, Model model) {
-        if (files.length == 0 || files[0].isEmpty()) {
-            model.addAttribute("error", "Vui lòng chọn ít nhất một file để tải lên");
+        logger.info("File upload request received with " + files.length + " files");
+        
+        try {
+            if (files.length == 0 || files[0].isEmpty()) {
+                logger.warning("No files were selected for upload");
+                model.addAttribute("error", "Vui lòng chọn ít nhất một file để tải lên");
+                return "upload";
+            }
+
+            int successCount = 0;
+            StringBuilder errors = new StringBuilder();
+
+            for (MultipartFile file : files) {
+                try {
+                    String originalFilename = file.getOriginalFilename();
+                    logger.info("Processing file: " + originalFilename + " (size: " + file.getSize() + " bytes)");
+                    
+                    // Kiểm tra kích thước file
+                    if (file.getSize() > 20 * 1024 * 1024) { // 20MB
+                        String errorMsg = "File " + originalFilename + " vượt quá kích thước cho phép (20MB)";
+                        errors.append(errorMsg).append("\n");
+                        logger.warning(errorMsg);
+                        continue;
+                    }
+                    
+                    String documentName = (name != null && !name.isEmpty()) ? 
+                            name + " - " + originalFilename : originalFilename;
+                    
+                    // Kiểm tra loại file và định dạng
+                    String fileExtension = getFileExtension(originalFilename);
+                    logger.info("File extension detected: " + fileExtension);
+                    
+                    String content;
+                    
+                    // Chỉ xử lý text đơn thuần cho file TXT
+                    if ("txt".equalsIgnoreCase(fileExtension)) {
+                        logger.info("Reading content from text file: " + originalFilename);
+                        content = readTextFile(file);
+                        logger.info("Successfully read " + (content != null ? content.length() : 0) + " characters from file");
+                    } else {
+                        // Với các loại file khác, hiển thị thông báo lỗi tạm thời
+                        String errorMsg = "Loại file " + fileExtension + " chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT.";
+                        errors.append(errorMsg).append("\n");
+                        logger.warning(errorMsg);
+                        continue;
+                    }
+                    
+                    if (content != null && !content.trim().isEmpty()) {
+                        logger.info("Saving document to database: " + documentName);
+                        try {
+                            trainingService.saveDocument(documentName, content);
+                            logger.info("Document saved successfully: " + documentName);
+                            successCount++;
+                        } catch (Exception e) {
+                            String errorMsg = "Lỗi khi lưu tài liệu " + originalFilename + ": " + e.getMessage();
+                            logger.severe(errorMsg);
+                            errors.append(errorMsg).append("\n");
+                            e.printStackTrace();
+                        }
+                    } else {
+                        String errorMsg = "Không thể đọc nội dung từ file " + originalFilename;
+                        errors.append(errorMsg).append("\n");
+                        logger.warning(errorMsg);
+                    }
+                    
+                } catch (Exception e) {
+                    String errorMsg = "Lỗi khi xử lý file " + file.getOriginalFilename() + ": " + e.getMessage();
+                    errors.append(errorMsg).append("\n");
+                    logger.severe(errorMsg);
+                    e.printStackTrace();
+                }
+            }
+            
+            if (successCount > 0) {
+                String successMsg = successCount + " file đã được tải lên và AI đã học thành công!";
+                model.addAttribute("message", successMsg);
+                logger.info(successMsg);
+            } else {
+                model.addAttribute("error", "Không có file nào được tải lên thành công. " + 
+                                           (errors.length() > 0 ? errors.toString() : "Vui lòng kiểm tra loại file và kích thước."));
+                logger.warning("No files were successfully uploaded");
+            }
+            
+            if (errors.length() > 0) {
+                model.addAttribute("error", errors.toString());
+                logger.warning("Errors occurred during upload: " + errors.toString());
+            }
+            
+            return "upload";
+        } catch (Exception e) {
+            // Xử lý tất cả các lỗi không mong muốn
+            logger.severe("Unexpected error during file upload: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Đã xảy ra lỗi không mong muốn: " + e.getMessage());
             return "upload";
         }
-
-        int successCount = 0;
-        StringBuilder errors = new StringBuilder();
-
-        for (MultipartFile file : files) {
-            try {
-                String originalFilename = file.getOriginalFilename();
-                String documentName = (name != null && !name.isEmpty()) ? 
-                        name + " - " + originalFilename : originalFilename;
-                
-                // Kiểm tra loại file và định dạng
-                String fileExtension = getFileExtension(originalFilename);
-                String content;
-                
-                // Chỉ xử lý text đơn thuần cho file TXT
-                if ("txt".equalsIgnoreCase(fileExtension)) {
-                    content = readTextFile(file);
-                } else {
-                    // Với các loại file khác, hiển thị thông báo lỗi tạm thời
-                    errors.append("Loại file ").append(fileExtension)
-                          .append(" chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT.\n");
-                    logger.warning("Unsupported file type: " + fileExtension);
-                    continue;
-                }
-                
-                if (content != null && !content.trim().isEmpty()) {
-                    trainingService.saveDocument(documentName, content);
-                    successCount++;
-                } else {
-                    errors.append("Không thể đọc nội dung từ file ").append(originalFilename).append("\n");
-                }
-                
-            } catch (Exception e) {
-                errors.append("Lỗi khi xử lý file ").append(file.getOriginalFilename())
-                      .append(": ").append(e.getMessage()).append("\n");
-                logger.severe("Lỗi khi xử lý file " + file.getOriginalFilename() + ": " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-        
-        if (successCount > 0) {
-            model.addAttribute("message", successCount + " file đã được tải lên và AI đã học thành công!");
-        }
-        
-        if (errors.length() > 0) {
-            model.addAttribute("error", errors.toString());
-        }
-        
-        return "upload";
     }
     
     /**

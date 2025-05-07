@@ -43,37 +43,60 @@ public class TrainingService { // Khai báo lớp dịch vụ huấn luyện
      * 3. Kiểm tra và giới hạn số lượng đoạn để tránh quá tải
      * 4. Tạo vector nhúng cho các đoạn văn bản theo lô
      * 
+     * @param name Tên tài liệu 
      * @param content Nội dung văn bản của tài liệu
-     * @param fileName Tên file tài liệu
      * @return Đối tượng Document đã được lưu với ID từ cơ sở dữ liệu
      * @throws RuntimeException Nếu có lỗi trong quá trình lưu tài liệu
      */
     @Transactional // Đảm bảo tính toàn vẹn của giao dịch, nếu có lỗi sẽ rollback toàn bộ
-    public Document saveDocument(String content, String fileName) { // Phương thức lưu tài liệu và tạo vector nhúng
+    public Document saveDocument(String name, String content) { // Phương thức lưu tài liệu và tạo vector nhúng
         try {
+            logger.info("Starting to save document: " + name + " (content length: " + content.length() + " characters)");
+            
             // Tạo đối tượng Document mới
             Document document = new Document(); // Khởi tạo đối tượng Document mới
-            document.setName(fileName); // Đặt tên tài liệu
+            document.setName(name); // Đặt tên tài liệu
             document.setContent(content); // Đặt nội dung tài liệu
             document.setCreatedAt(LocalDateTime.now()); // Đặt thời gian tạo là thời điểm hiện tại
+            
+            logger.info("Saving document to database: " + name);
             document = documentRepository.save(document); // Lưu tài liệu vào cơ sở dữ liệu và cập nhật đối tượng với ID đã tạo
+            logger.info("Document saved with ID: " + document.getId());
 
             // Phân đoạn văn bản và tạo vector
-            List<String> segments = splitContent(content); // Phân tách nội dung thành các đoạn nhỏ hơn
+            logger.info("Starting content splitting for document: " + name);
+            List<String> segments;
+            try {
+                segments = splitContent(content); // Phân tách nội dung thành các đoạn nhỏ hơn
+                logger.info("Content split into " + segments.size() + " segments");
+            } catch (Exception e) {
+                logger.severe("Error splitting content: " + e.getMessage());
+                e.printStackTrace();
+                throw new RuntimeException("Failed to split document content", e);
+            }
             
             // Giới hạn số lượng segment để tránh quá tải khi file lớn
             if (segments.size() > MAX_SEGMENTS_PER_DOCUMENT) { // Kiểm tra nếu số đoạn vượt quá giới hạn
-                logger.warning("Document '" + fileName + "' has too many segments (" + segments.size() + 
+                logger.warning("Document '" + name + "' has too many segments (" + segments.size() + 
                     "), limiting to " + MAX_SEGMENTS_PER_DOCUMENT); // Ghi log cảnh báo
                 segments = segments.subList(0, MAX_SEGMENTS_PER_DOCUMENT); // Cắt bớt danh sách chỉ giữ lại số đoạn trong giới hạn
             }
             
             // Tạo vector nhúng cho các đoạn văn bản theo lô
-            createVectorsInBatches(document.getId(), segments); // Gọi phương thức tạo vector theo lô với ID tài liệu và danh sách đoạn
+            logger.info("Starting to create vectors for document: " + name + " (ID: " + document.getId() + ")");
+            try {
+                createVectorsInBatches(document.getId(), segments); // Gọi phương thức tạo vector theo lô với ID tài liệu và danh sách đoạn
+                logger.info("Vectors created successfully for document: " + name);
+            } catch (Exception e) {
+                logger.severe("Error creating vectors: " + e.getMessage());
+                e.printStackTrace();
+                throw new RuntimeException("Failed to create vectors for document content", e);
+            }
 
             return document; // Trả về đối tượng tài liệu đã được lưu với ID
         } catch (Exception e) { // Bắt tất cả các ngoại lệ có thể xảy ra
-            logger.severe("Error saving document: " + e.getMessage()); // Ghi log lỗi nghiêm trọng
+            logger.severe("Error saving document " + name + ": " + e.getMessage()); // Ghi log lỗi nghiêm trọng
+            e.printStackTrace();
             throw new RuntimeException("Failed to save document", e); // Ném ngoại lệ RuntimeException với thông báo lỗi
         }
     }
@@ -87,12 +110,76 @@ public class TrainingService { // Khai báo lớp dịch vụ huấn luyện
      * @return Danh sách các đoạn văn bản đã được phân tách
      */
     private List<String> splitContent(String content) { // Phương thức phân tách nội dung văn bản thành các đoạn
-        // Sử dụng Vertex AI để phân đoạn văn bản
-        String prompt = "Hãy phân đoạn văn bản sau thành các câu ngắn, mỗi câu trên một dòng:\n" + content; // Tạo prompt yêu cầu AI phân đoạn văn bản
-        String response = vertexAIService.generateText(prompt); // Gọi dịch vụ AI để sinh văn bản phân đoạn
-        return Arrays.stream(response.split("\n")) // Phân tách kết quả thành các dòng dựa trên ký tự xuống dòng
-                .filter(s -> !s.trim().isEmpty()) // Lọc bỏ các dòng rỗng
-                .collect(Collectors.toList()); // Chuyển đổi luồng dữ liệu thành danh sách
+        logger.info("Splitting content with length: " + content.length() + " characters");
+        
+        // Nếu nội dung quá dài, phân tách theo dòng hoặc câu đơn giản
+        if (content.length() > 5000) {
+            logger.info("Content too large for AI splitting, using simple method");
+            return splitContentSimple(content);
+        }
+        
+        // Sử dụng Vertex AI để phân đoạn văn bản với timeout
+        try {
+            String prompt = "Hãy phân đoạn văn bản sau thành các câu ngắn, mỗi câu trên một dòng:\n" + content; // Tạo prompt yêu cầu AI phân đoạn văn bản
+            logger.info("Calling Vertex AI to split content");
+            
+            // Đặt timeout 20 giây để tránh treo quá lâu
+            String response = vertexAIService.generateTextWithTimeout(prompt, 20); // Gọi dịch vụ AI để sinh văn bản phân đoạn
+            
+            if (response == null || response.trim().isEmpty()) {
+                logger.warning("Empty response from Vertex AI, using simple splitting");
+                return splitContentSimple(content);
+            }
+            
+            List<String> segments = Arrays.stream(response.split("\n")) // Phân tách kết quả thành các dòng dựa trên ký tự xuống dòng
+                    .filter(s -> !s.trim().isEmpty()) // Lọc bỏ các dòng rỗng
+                    .collect(Collectors.toList()); // Chuyển đổi luồng dữ liệu thành danh sách
+            
+            logger.info("Vertex AI returned " + segments.size() + " segments");
+            return segments;
+        } catch (Exception e) {
+            logger.warning("Error using Vertex AI for content splitting: " + e.getMessage() + ". Falling back to simple method.");
+            e.printStackTrace();
+            return splitContentSimple(content);
+        }
+    }
+    
+    /**
+     * Phân tách nội dung theo phương pháp đơn giản (fallback)
+     * Phương thức này được sử dụng khi Vertex AI không khả dụng 
+     * hoặc khi nội dung quá lớn
+     * 
+     * @param content Nội dung văn bản cần phân tách
+     * @return Danh sách các đoạn văn bản đã được phân tách
+     */
+    private List<String> splitContentSimple(String content) {
+        logger.info("Using simple content splitting method");
+        List<String> segments = new ArrayList<>();
+        
+        // Phân tách theo dòng trước
+        String[] lines = content.split("\n");
+        
+        for (String line : lines) {
+            if (line.trim().isEmpty()) {
+                continue;
+            }
+            
+            // Nếu dòng quá dài, phân tách thành các đoạn nhỏ hơn
+            if (line.length() > 200) {
+                // Phân tách theo dấu chấm hoặc dấu chấm phẩy
+                String[] sentences = line.split("[.;!?]+");
+                for (String sentence : sentences) {
+                    if (!sentence.trim().isEmpty()) {
+                        segments.add(sentence.trim());
+                    }
+                }
+            } else {
+                segments.add(line.trim());
+            }
+        }
+        
+        logger.info("Simple splitting returned " + segments.size() + " segments");
+        return segments;
     }
 
     /**
