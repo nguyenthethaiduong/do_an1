@@ -22,6 +22,11 @@ import aidhkm.dhkm16a1hn.repository.EmbeddingRepository;
 import aidhkm.dhkm16a1hn.repository.DocumentRepository;
 import aidhkm.dhkm16a1hn.service.ChatService;
 
+// Import thêm cho việc xử lý PDF
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+
 /**
  * Controller quản lý các thao tác liên quan đến huấn luyện, quản lý tài liệu và xử lý vector
  * Cung cấp các endpoint để tải lên, liệt kê, xóa tài liệu và tái tạo vector nhúng
@@ -134,7 +139,7 @@ public class TrainingController {
                     
                     String content;
                     
-                    // Chỉ xử lý text đơn thuần cho file TXT
+                    // Xử lý cả file TXT và PDF
                     if ("txt".equalsIgnoreCase(fileExtension)) {
                         logger.info("Reading content from text file: " + originalFilename);
                         content = readTextFile(file);
@@ -145,9 +150,41 @@ public class TrainingController {
                             logger.info("Content sample (first 100 chars): " + 
                                       content.substring(0, Math.min(content.length(), 100)));
                         }
+                    } else if ("pdf".equalsIgnoreCase(fileExtension)) {
+                        logger.info("Processing PDF file: " + originalFilename);
+                        // Sử dụng PDFService để xử lý file PDF
+                        try {
+                            // Lưu file tạm thời
+                            java.io.File tempFile = java.io.File.createTempFile("temp_pdf_", ".pdf");
+                            file.transferTo(tempFile);
+                            
+                            // Sử dụng PDFBox để trích xuất nội dung
+                            try (PDDocument document = Loader.loadPDF(tempFile)) {
+                                PDFTextStripper stripper = new PDFTextStripper();
+                                content = stripper.getText(document);
+                                
+                                logger.info("Successfully extracted " + (content != null ? content.length() : 0) + 
+                                           " characters from PDF file");
+                                
+                                // Log sample content for debugging
+                                if (content != null && content.length() > 0) {
+                                    logger.info("Content sample (first 100 chars): " + 
+                                              content.substring(0, Math.min(content.length(), 100)));
+                                }
+                            }
+                            
+                            // Xóa file tạm
+                            tempFile.delete();
+                        } catch (Exception e) {
+                            logger.severe("Error processing PDF file: " + e.getMessage());
+                            e.printStackTrace();
+                            String errorMsg = "Lỗi khi xử lý file PDF " + originalFilename + ": " + e.getMessage();
+                            errors.append(errorMsg).append("\n");
+                            continue;
+                        }
                     } else {
                         // Với các loại file khác, hiển thị thông báo lỗi tạm thời
-                        String errorMsg = "Loại file " + fileExtension + " chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT.";
+                        String errorMsg = "Loại file " + fileExtension + " chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT và PDF.";
                         errors.append(errorMsg).append("\n");
                         logger.warning(errorMsg);
                         continue;
