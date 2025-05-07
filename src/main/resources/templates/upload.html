@@ -430,7 +430,7 @@
         </div>
         
         <div class="upload-body">
-            <form th:action="@{/training/upload}" method="post" enctype="multipart/form-data" id="uploadForm">
+            <form th:action="@{/training/upload-file}" method="post" enctype="multipart/form-data" id="uploadForm">
                 <div class="file-upload-area" id="dropZone">
                     <input type="file" id="file-input" name="file" class="d-none" onchange="handleFileSelect(event)">
                     <div class="file-upload-icon">
@@ -449,7 +449,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">Tiêu đề tài liệu (tùy chọn)</label>
-                    <input type="text" class="form-control" name="title" placeholder="Nhập tiêu đề tài liệu...">
+                    <input type="text" class="form-control" name="name" placeholder="Nhập tiêu đề tài liệu...">
                 </div>
                 
                 <div class="form-group">
