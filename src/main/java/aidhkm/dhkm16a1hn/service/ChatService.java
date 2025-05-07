@@ -542,96 +542,136 @@ public class ChatService { // Khai báo lớp dịch vụ xử lý chat - lớp 
      * @param similarSentences Danh sách các câu tương tự được tìm thấy
      * @return Câu trả lời được tạo ra hoặc thông báo không tìm thấy thông tin
      */
-    private String generateAnswerFromSimilarSentences(String question, List<String> similarSentences) { // Phương thức tạo câu trả lời từ các câu tương tự
+    private String generateAnswerFromSimilarSentences(String question, List<String> similarSentences) {
         try {
-            if (similarSentences.isEmpty()) { // Kiểm tra nếu không có câu tương tự nào
-                return NO_INFORMATION_MESSAGE; // Trả về thông báo không tìm thấy thông tin
+            // BƯỚC 1: KIỂM TRA DỮ LIỆU ĐẦU VÀO
+            // Nếu không có câu tương tự nào, trả về thông báo không tìm thấy thông tin ngay lập tức
+            if (similarSentences.isEmpty()) {
+                log.debug("Không tìm thấy câu tương tự nào cho câu hỏi: {}", question);
+                return NO_INFORMATION_MESSAGE;
             }
 
-            // Kết hợp các câu tương tự làm ngữ cảnh
-            String context = String.join("\n\n", similarSentences); // Nối các câu tương tự với nhau, phân cách bằng 2 dòng mới
+            // BƯỚC 2: TẠO NGỮ CẢNH TỪ CÁC CÂU TƯƠNG TỰ
+            // Kết hợp tất cả các câu tương tự tìm được thành một văn bản duy nhất với mỗi câu cách nhau 2 dòng mới
+            String context = String.join("\n\n", similarSentences);
+            log.debug("Đã tạo ngữ cảnh từ {} câu tương tự, độ dài: {} ký tự", similarSentences.size(), context.length());
 
-            // Trích xuất các câu liên quan nhất
-            String relevantText = extractRelevantSentences(question, context); // Trích xuất các câu liên quan trực tiếp đến câu hỏi
-            if (relevantText.isEmpty()) { // Nếu không có câu liên quan nào được tìm thấy
-                relevantText = context; // Sử dụng toàn bộ ngữ cảnh
+            // BƯỚC 3: TRÍCH XUẤT CÁC CÂU LIÊN QUAN NHẤT TỪ NGỮ CẢNH
+            // Lọc ra chỉ những câu có liên quan trực tiếp đến câu hỏi để tối ưu hóa ngữ cảnh
+            String relevantText = extractRelevantSentences(question, context);
+            if (relevantText.isEmpty()) {
+                log.debug("Không tìm được câu liên quan, sử dụng toàn bộ ngữ cảnh");
+                relevantText = context; // Nếu không tìm được câu liên quan, sử dụng toàn bộ ngữ cảnh
+            } else {
+                log.debug("Đã trích xuất văn bản liên quan, độ dài: {} ký tự", relevantText.length());
             }
 
-            // Xác định loại câu hỏi để tạo prompt chuyên biệt
-            QuestionType questionType = detectQuestionType(question); // Phát hiện loại câu hỏi (định nghĩa, so sánh, quy trình, v.v.)
+            // BƯỚC 4: XÁC ĐỊNH LOẠI CÂU HỎI
+            // Phân tích câu hỏi để xác định loại (định nghĩa, so sánh, quy trình, ...)
+            QuestionType questionType = detectQuestionType(question);
+            log.debug("Đã phát hiện loại câu hỏi: {}", questionType);
 
-            // Sử dụng loại câu hỏi đã phát hiện để xác định nếu đó là câu hỏi định nghĩa
-            boolean isDefinitionQuestion = (questionType == QuestionType.DEFINITION); // Kiểm tra xem có phải câu hỏi định nghĩa không
+            // Biến cờ để đánh dấu câu hỏi định nghĩa - cần xử lý đặc biệt
+            boolean isDefinitionQuestion = (questionType == QuestionType.DEFINITION);
 
-            // Đối với câu hỏi định nghĩa, xác minh xem ngữ cảnh có chứa chủ đề
-            if (isDefinitionQuestion) { // Nếu là câu hỏi định nghĩa
-                // Trích xuất chủ đề của câu hỏi định nghĩa (phần trước "là gì")
-                String subject = extractSubjectFromDefinitionQuestion(question); // Trích xuất chủ đề, ví dụ "cháo" từ "cháo là gì"
+            // BƯỚC 5: XỬ LÝ ĐẶC BIỆT CHO CÂU HỎI ĐỊNH NGHĨA
+            if (isDefinitionQuestion) {
+                log.debug("Xử lý đặc biệt cho câu hỏi định nghĩa");
+                
+                // 5.1: Trích xuất chủ đề từ câu hỏi định nghĩa (ví dụ: "cháo" từ "cháo là gì")
+                String subject = extractSubjectFromDefinitionQuestion(question);
 
-                if (subject != null && !subject.isEmpty()) { // Nếu trích xuất được chủ đề
-                    // Kiểm tra xem ngữ cảnh có chứa chủ đề không
-                    boolean contextContainsSubject = 
-                        relevantText.toLowerCase().contains(subject.toLowerCase()); // Kiểm tra xem văn bản có chứa chủ đề không (không phân biệt hoa thường)
-
-                    // Nếu ngữ cảnh không chứa chủ đề, trả về thông báo không có thông tin
-                    if (!contextContainsSubject) { // Nếu không tìm thấy chủ đề trong văn bản
-                        log.warn("Definition subject '{}' not found in context - query: '{}'", 
-                                subject, question); // Ghi log cảnh báo
-                        return NO_INFORMATION_MESSAGE; // Trả về thông báo không tìm thấy thông tin
+                // 5.2: Nếu trích xuất được chủ đề, thực hiện kiểm tra thêm
+                if (subject != null && !subject.isEmpty()) {
+                    log.debug("Đã trích xuất chủ đề từ câu hỏi định nghĩa: '{}'", subject);
+                    
+                    // 5.3: Kiểm tra xem ngữ cảnh có thực sự chứa chủ đề không
+                    // Đây là kiểm tra đầu tiên để đảm bảo chất lượng trả lời
+                    boolean contextContainsSubject = relevantText.toLowerCase().contains(subject.toLowerCase());
+                    
+                    // 5.4: Nếu ngữ cảnh không chứa chủ đề, không nên tạo câu trả lời
+                    if (!contextContainsSubject) {
+                        log.warn("Chủ đề '{}' không được tìm thấy trong ngữ cảnh - câu hỏi: '{}'", subject, question);
+                        return NO_INFORMATION_MESSAGE;
                     }
 
-                    // Đối với câu hỏi định nghĩa, cũng yêu cầu ngưỡng tương đồng cao hơn
-                    // Câu đầu tiên trong similarSentences chứa điểm tương đồng trong log
-                    float highestSimilarity = getHighestSimilarityFromSentences(similarSentences); // Lấy điểm tương đồng cao nhất
-                    final float DEFINITION_SIMILARITY_THRESHOLD = 0.5f; // Ngưỡng tương đồng cho câu hỏi định nghĩa
+                    // 5.5: Kiểm tra ngưỡng tương đồng cho câu hỏi định nghĩa
+                    // Câu hỏi định nghĩa cần ngưỡng tương đồng cao hơn để đảm bảo chất lượng
+                    float highestSimilarity = getHighestSimilarityFromSentences(similarSentences);
+                    final float DEFINITION_SIMILARITY_THRESHOLD = 0.5f; // Ngưỡng cao hơn cho câu hỏi định nghĩa
 
-                    if (highestSimilarity < DEFINITION_SIMILARITY_THRESHOLD) { // Nếu điểm tương đồng thấp hơn ngưỡng
-                        log.warn("Definition question '{}' has similarity {} below threshold {} - returning no info", 
-                                question, highestSimilarity, DEFINITION_SIMILARITY_THRESHOLD); // Ghi log cảnh báo
-                        return NO_INFORMATION_MESSAGE; // Trả về thông báo không tìm thấy thông tin
+                    // 5.6: Nếu điểm tương đồng thấp hơn ngưỡng, không nên tạo câu trả lời
+                    if (highestSimilarity < DEFINITION_SIMILARITY_THRESHOLD) {
+                        log.warn("Câu hỏi định nghĩa '{}' có điểm tương đồng {} thấp hơn ngưỡng {} - trả về không có thông tin", 
+                                question, highestSimilarity, DEFINITION_SIMILARITY_THRESHOLD);
+                        return NO_INFORMATION_MESSAGE;
                     }
 
-                    log.info("Definition question '{}' with subject '{}' passed checks - similarity: {}", 
-                            question, subject, highestSimilarity); // Ghi log thông tin khi câu hỏi định nghĩa vượt qua kiểm tra
+                    log.info("Câu hỏi định nghĩa '{}' với chủ đề '{}' đã vượt qua kiểm tra - điểm tương đồng: {}", 
+                            question, subject, highestSimilarity);
                 }
-            } else { // Nếu không phải câu hỏi định nghĩa
+            } else {
+                // BƯỚC 6: XỬ LÝ CHO CÁC LOẠI CÂU HỎI KHÁC
                 // Đối với các câu hỏi không phải định nghĩa, áp dụng ngưỡng tương đồng thấp hơn
-                float highestSimilarity = getHighestSimilarityFromSentences(similarSentences); // Lấy điểm tương đồng cao nhất
-                final float GENERAL_SIMILARITY_THRESHOLD = 0.25f; // Ngưỡng tương đồng cho câu hỏi thông thường
+                float highestSimilarity = getHighestSimilarityFromSentences(similarSentences);
+                final float GENERAL_SIMILARITY_THRESHOLD = 0.25f; // Ngưỡng thấp hơn cho câu hỏi thông thường
 
-                if (highestSimilarity < GENERAL_SIMILARITY_THRESHOLD) { // Nếu điểm tương đồng thấp hơn ngưỡng
-                    log.warn("Question '{}' has similarity {} below threshold {} - returning no info", 
-                            question, highestSimilarity, GENERAL_SIMILARITY_THRESHOLD); // Ghi log cảnh báo
-                    return NO_INFORMATION_MESSAGE; // Trả về thông báo không tìm thấy thông tin
+                // 6.1: Kiểm tra ngưỡng tương đồng cho câu hỏi thông thường
+                if (highestSimilarity < GENERAL_SIMILARITY_THRESHOLD) {
+                    log.warn("Câu hỏi '{}' có điểm tương đồng {} thấp hơn ngưỡng {} - trả về không có thông tin", 
+                            question, highestSimilarity, GENERAL_SIMILARITY_THRESHOLD);
+                    return NO_INFORMATION_MESSAGE;
                 }
 
-                log.info("Question '{}' passed similarity check: {}", question, highestSimilarity); // Ghi log thông tin khi câu hỏi vượt qua kiểm tra
+                log.info("Câu hỏi '{}' đã vượt qua kiểm tra điểm tương đồng: {}", question, highestSimilarity);
             }
 
-            // Tạo prompt dựa trên loại câu hỏi
-            String prompt = generatePromptByQuestionType(question, questionType); // Tạo prompt phù hợp với loại câu hỏi
+            // BƯỚC 7: TẠO PROMPT THEO LOẠI CÂU HỎI
+            // Tạo prompt phù hợp với loại câu hỏi để gửi cho mô hình ngôn ngữ
+            String prompt = generatePromptByQuestionType(question, questionType);
+            log.debug("Đã tạo prompt cho loại câu hỏi {}, độ dài: {} ký tự", questionType, prompt.length());
 
-            // Tạo văn bản bằng Vertex API
-            String generatedText = vertexAIService.generateText(prompt); // Gửi prompt đến Vertex AI để tạo câu trả lời
+            // BƯỚC 8: YÊU CẦU MÔ HÌNH NGÔN NGỮ TẠO CÂU TRẢ LỜI
+            // Gửi prompt đến Vertex AI để tạo câu trả lời
+            String generatedText = vertexAIService.generateText(prompt);
+            log.debug("Đã nhận câu trả lời từ mô hình, độ dài: {} ký tự", generatedText.length());
 
-            // Xác thực và chuẩn hóa câu trả lời
-            if (isInvalidAnswer(generatedText)) { // Kiểm tra xem câu trả lời có hợp lệ không
-                // Sử dụng cách tiếp cận trực tiếp hơn cho câu trả lời không hợp lệ
-                if (isDefinitionQuestion && relevantText.length() <= 300) { // Nếu là câu hỏi định nghĩa và văn bản đủ ngắn
-                    // Đối với câu hỏi định nghĩa, chỉ trả về câu đầu tiên
-                    String[] sentences = relevantText.split("(?<=[.!?])\\s+"); // Tách văn bản thành các câu
-                    if (sentences.length > 0) { // Nếu có ít nhất một câu
-                        return sentences[0]; // Trả về câu đầu tiên
+            // BƯỚC 9: XÁC THỰC VÀ XỬ LÝ CÂU TRẢ LỜI
+            // Kiểm tra xem câu trả lời có hợp lệ không
+            if (isInvalidAnswer(generatedText)) {
+                log.debug("Câu trả lời không hợp lệ, áp dụng phương pháp trích xuất trực tiếp");
+                
+                // 9.1: Nếu là câu hỏi định nghĩa và văn bản đủ ngắn, chỉ lấy câu đầu tiên
+                if (isDefinitionQuestion && relevantText.length() <= 300) {
+                    String[] sentences = relevantText.split("(?<=[.!?])\\s+");
+                    if (sentences.length > 0) {
+                        log.debug("Trả về câu đầu tiên cho câu hỏi định nghĩa");
+                        return sentences[0];
                     }
                 }
-                return extractFirstFewSentences(relevantText, 2); // Trích xuất chỉ 2 câu đầu tiên nếu không là câu hỏi định nghĩa hoặc văn bản quá dài
+                
+                // 9.2: Trường hợp khác, trích xuất 2 câu đầu tiên từ văn bản liên quan
+                log.debug("Trích xuất 2 câu đầu tiên từ văn bản");
+                return extractFirstFewSentences(relevantText, 2);
             }
 
-            String normalizedAnswer = normalizeAnswer(generatedText); // Chuẩn hóa câu trả lời bằng cách loại bỏ các phần thừa
-            return limitAnswerLength(normalizedAnswer); // Giới hạn độ dài và trả về câu trả lời cuối cùng
-        } catch (Exception e) { // Bắt ngoại lệ nếu có lỗi
-            log.error("Error generating answer from similar sentences: {}", e.getMessage()); // Ghi log lỗi
-            return NO_INFORMATION_MESSAGE; // Trả về thông báo không tìm thấy thông tin nếu có lỗi
+            // BƯỚC 10: CHUẨN HÓA CÂU TRẢ LỜI
+            // Chuẩn hóa câu trả lời bằng cách loại bỏ các phần thừa và điều chỉnh định dạng
+            String normalizedAnswer = normalizeAnswer(generatedText);
+            log.debug("Đã chuẩn hóa câu trả lời, độ dài ban đầu: {}, độ dài sau chuẩn hóa: {}", 
+                    generatedText.length(), normalizedAnswer.length());
+
+            // BƯỚC 11: GIỚI HẠN ĐỘ DÀI VÀ TRẢ VỀ KẾT QUẢ CUỐI CÙNG
+            // Giới hạn độ dài câu trả lời nếu quá dài và trả về kết quả cuối cùng
+            String finalAnswer = limitAnswerLength(normalizedAnswer);
+            log.debug("Câu trả lời cuối cùng, độ dài: {} ký tự", finalAnswer.length());
+            
+            return finalAnswer;
+        } catch (Exception e) {
+            // XỬ LÝ NGOẠI LỆ
+            // Ghi log lỗi và trả về thông báo không tìm thấy thông tin để tránh lỗi cho người dùng
+            log.error("Lỗi khi tạo câu trả lời từ các câu tương tự: {}", e.getMessage());
+            return NO_INFORMATION_MESSAGE;
         }
     }
 
@@ -906,9 +946,11 @@ public class ChatService { // Khai báo lớp dịch vụ xử lý chat - lớp 
      * @return Loại câu hỏi được phát hiện
      */
     private QuestionType detectQuestionType(String question) {
+        // Chuyển câu hỏi sang chữ thường để dễ dàng so sánh không phân biệt hoa thường
         String lowerCaseQuestion = question.toLowerCase();
 
-        // Câu hỏi định nghĩa
+        // LOẠI 1: Câu hỏi định nghĩa - yêu cầu giải thích về một khái niệm, định nghĩa
+        // Ví dụ: "Deep learning là gì?", "Cho biết định nghĩa về machine learning"
         if (lowerCaseQuestion.matches(".*(là ai |là gì|định nghĩa|khái niệm|nghĩa là|ý nghĩa của|giải thích|giải nghĩa).*") ||
                 (lowerCaseQuestion.contains("cho biết") &&
                         (lowerCaseQuestion.contains("là gì") || lowerCaseQuestion.contains("định nghĩa"))) ||
@@ -921,152 +963,162 @@ public class ChatService { // Khai báo lớp dịch vụ xử lý chat - lớp 
             return QuestionType.DEFINITION;
         }
 
-        // Câu hỏi so sánh
+        // LOẠI 2: Câu hỏi so sánh - yêu cầu so sánh giữa hai khái niệm/đối tượng
+        // Ví dụ: "So sánh machine learning và deep learning", "Python và Java khác nhau như thế nào?"
         if (lowerCaseQuestion.matches(".*(so sánh|khác nhau|giống nhau|điểm giống|điểm khác|phân biệt).*")) {
             return QuestionType.COMPARISON;
         }
 
-        // Câu hỏi quy trình
+        // LOẠI 3: Câu hỏi quy trình - yêu cầu hướng dẫn các bước thực hiện
+        // Ví dụ: "Làm thế nào để cài đặt Python?", "Cách tạo một database trong MySQL"
         if (lowerCaseQuestion.matches(".*(làm thế nào|làm sao|cách|quy trình|các bước|hướng dẫn|thực hiện).*")) {
             return QuestionType.PROCEDURE;
         }
 
-        // Câu hỏi nguyên nhân – kết quả
+        // LOẠI 4: Câu hỏi nguyên nhân-kết quả - yêu cầu giải thích lý do
+        // Ví dụ: "Tại sao máy tính bị chậm?", "Vì sao cần sử dụng HTTPS?"
         if (lowerCaseQuestion.matches(".*(tại sao|vì sao|lý do|nguyên nhân|dẫn đến|kết quả của|hệ quả).*")) {
             return QuestionType.CAUSE_EFFECT;
         }
 
-        // Câu hỏi lịch sử
+        // LOẠI 5: Câu hỏi lịch sử - yêu cầu thông tin về nguồn gốc, lịch sử hình thành
+        // Ví dụ: "Lịch sử phát triển của Internet", "Python ra đời khi nào?"
         if (lowerCaseQuestion.matches(".*(lịch sử|nguồn gốc|bắt đầu|xuất phát|ra đời|hình thành|khi nào).*")) {
             return QuestionType.HISTORICAL;
         }
 
-        // Câu hỏi liệt kê
+        // LOẠI 6: Câu hỏi liệt kê - yêu cầu liệt kê danh sách các đối tượng/yếu tố
+        // Ví dụ: "Liệt kê các loại mạng neural", "Kể tên các ngôn ngữ lập trình phổ biến"
         if (lowerCaseQuestion.matches(".*(liệt kê|kể tên|nêu|các loại|những loại|bao nhiêu|có mấy).*")) {
             return QuestionType.LISTING;
         }
 
-        // Câu hỏi ví dụ
+        // LOẠI 7: Câu hỏi yêu cầu ví dụ - yêu cầu đưa ra ví dụ cụ thể
+        // Ví dụ: "Cho ví dụ về ứng dụng của blockchain", "Minh họa cách sử dụng vòng lặp for"
         if (lowerCaseQuestion.matches(".*(ví dụ|minh họa|dẫn chứng|trường hợp).*")) {
             return QuestionType.EXAMPLES;
         }
 
-        // Câu hỏi ai/cái gì (định danh)
+        // LOẠI 8: Câu hỏi định danh - hỏi về ai/cái gì
+        // Ví dụ: "AI là ai?", "REST API là cái gì?", "Facebook được tạo ra ở đâu?"
         if (lowerCaseQuestion.matches(".*(ai là|là ai|người nào|cái gì|vật gì|nơi nào|ở đâu).*")) {
             return QuestionType.WHO_WHAT;
         }
 
-        // Câu hỏi phân tích
+        // LOẠI 9: Câu hỏi phân tích - yêu cầu đánh giá, phân tích ưu nhược điểm
+        // Ví dụ: "Đánh giá ưu nhược điểm của NoSQL", "Phân tích tác động của AI đến xã hội"
         if (lowerCaseQuestion.matches(".*(đánh giá|nhận xét|phân tích|ưu điểm|nhược điểm|mặt tốt|mặt xấu).*")) {
             return QuestionType.ANALYSIS;
         }
 
-        // Mặc định
+        // Nếu không khớp với bất kỳ mẫu nào, trả về loại câu hỏi chung (mặc định)
         return QuestionType.GENERAL;
     }
 
 
     /**
-     * Tạo gợi ý phù hợp dựa trên loại câu hỏi để gửi đến dịch vụ AI
+     * Tạo prompt (gợi ý) phù hợp dựa trên loại câu hỏi để gửi đến dịch vụ AI
+     * Mỗi loại câu hỏi (định nghĩa, so sánh, quy trình...) sẽ có một dạng prompt riêng
+     * để tạo ra câu trả lời tự nhiên và phù hợp nhất
+     * 
      * @param question Câu hỏi của người dùng
-     * @param questionType Loại câu hỏi đã được phát hiện
+     * @param questionType Loại câu hỏi đã được phát hiện bởi phương thức detectQuestionType
      * @return Chuỗi prompt hoàn chỉnh để gửi đến AI
      */
-    private String generatePromptByQuestionType(String question, QuestionType questionType) { // Khai báo phương thức tạo prompt dựa trên loại câu hỏi
-        log.info("Generating prompt for question type: {}", questionType); // Ghi log thông tin về loại câu hỏi đang xử lý
+    private String generatePromptByQuestionType(String question, QuestionType questionType) {
+        // Ghi log loại câu hỏi đang xử lý để phục vụ việc gỡ lỗi
+        log.info("Đang tạo prompt cho loại câu hỏi: {}", questionType);
 
-        StringBuilder prompt = new StringBuilder("Trả lời câu hỏi dưới đây một cách chính xác và súc tích:\n\n"); // Khởi tạo chuỗi prompt với phần mở đầu chung
-        prompt.append(question); // Thêm câu hỏi của người dùng vào prompt
-        prompt.append("\n\n"); // Thêm hai dòng trống để phân tách câu hỏi và hướng dẫn
+        // Khởi tạo prompt với phần mở đầu chung - yêu cầu câu trả lời tự nhiên và dễ hiểu
+        StringBuilder prompt = new StringBuilder("Trả lời câu hỏi dưới đây một cách tự nhiên, dễ hiểu và súc tích:\n\n");
+        
+        // Thêm câu hỏi của người dùng vào prompt
+        prompt.append(question);
+        prompt.append("\n\n");
 
-        switch (questionType) { // Bắt đầu khối switch để xử lý từng loại câu hỏi khác nhau
-            case DEFINITION: // Trường hợp câu hỏi định nghĩa
-                prompt.append("Yêu cầu: Đưa ra định nghĩa vừa đủ và chính xác về khái niệm được hỏi. " + // Thêm hướng dẫn cho câu hỏi định nghĩa
-                        "Viết 1-3 câu chi tiết để trình bày các khía cạnh quan trọng của khái niệm. " +
-                        "Bắt đầu bằng cụm từ '[Khái niệm] là' để giới thiệu định nghĩa. " +
-                        "Trả lời vừa đủ, chi tiết và chính xác về mặt học thuật. " +
-                        "Sử dụng ngôn ngữ dễ hiểu nhưng vẫn đảm bảo tính chuyên môn. " +
-                        "Đưa ra đầy đủ thông tin từ tài liệu về định nghĩa, đặc điểm chính và ứng dụng nếu có. " +
-                        "KHÔNG kết thúc bằng các câu như 'hy vọng giúp ích' hoặc 'đây là định nghĩa về'.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi định nghĩa
+        // Xử lý khác nhau cho từng loại câu hỏi
+        switch (questionType) {
+            case DEFINITION: // Câu hỏi định nghĩa (ví dụ: X là gì?)
+                // Hướng dẫn AI trả lời những câu hỏi định nghĩa một cách dễ hiểu, như cuộc trò chuyện
+                prompt.append("Yêu cầu: Đưa ra định nghĩa rõ ràng, dễ hiểu như thể đang trò chuyện với người học. " +
+                        "Giải thích khái niệm bằng ngôn ngữ tự nhiên, có thể thêm ví dụ minh họa ngắn gọn nếu cần. " +
+                        "Hãy giải thích khái niệm như cách một giáo viên giỏi giải thích cho học sinh của mình. " +
+                        "Trả lời vừa đủ chi tiết nhưng vẫn đảm bảo tính chuyên môn.");
+                break;
 
-            case COMPARISON: // Trường hợp câu hỏi so sánh
-                prompt.append("Yêu cầu: Trả lời ngắn gọn, tập trung vào 2-3 điểm khác biệt chính và quan trọng nhất. " + // Thêm hướng dẫn cho câu hỏi so sánh
-                        "KHÔNG liệt kê quá nhiều điểm. KHÔNG dài dòng giải thích từng điểm. Nếu có thể, sử dụng cấu trúc " +
-                        "so sánh đối chiếu rõ ràng. KHÔNG giới thiệu câu trả lời. KHÔNG kết luận lại sau khi so sánh.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi so sánh
+            case COMPARISON: // Câu hỏi so sánh (ví dụ: So sánh X và Y)
+                // Hướng dẫn AI trả lời những câu hỏi so sánh một cách tự nhiên, tập trung vào điểm khác biệt chính
+                prompt.append("Yêu cầu: Hãy so sánh một cách tự nhiên, tập trung vào 2-3 điểm khác biệt chính và quan trọng nhất. " +
+                        "Giải thích sự khác biệt như thể đang giải thích cho một người bạn. " +
+                        "Dùng ngôn ngữ đời thường kết hợp với từ ngữ chuyên môn khi cần thiết.");
+                break;
 
-            case PROCEDURE: // Trường hợp câu hỏi về quy trình/thủ tục
-                prompt.append("Yêu cầu: Liệt kê tối đa 5 bước chính theo thứ tự logic. " + // Thêm hướng dẫn cho câu hỏi về quy trình
-                        "Sử dụng động từ mệnh lệnh để bắt đầu mỗi bước. " +
-                        "Mỗi bước cần ngắn gọn và rõ ràng. " +
-                        "KHÔNG giải thích dài dòng cho từng bước. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận sau khi liệt kê các bước.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi về quy trình
+            case PROCEDURE: // Câu hỏi quy trình (ví dụ: Làm thế nào để X?)
+                // Hướng dẫn AI trình bày các bước quy trình một cách tự nhiên như đang hướng dẫn trực tiếp
+                prompt.append("Yêu cầu: Hướng dẫn các bước một cách tự nhiên như đang giải thích trực tiếp. " +
+                        "Sử dụng ngôn ngữ hội thoại nhưng vẫn rõ ràng về thứ tự các bước. " +
+                        "Mỗi bước nên ngắn gọn và dễ hiểu.");
+                break;
 
-            case CAUSE_EFFECT: // Trường hợp câu hỏi về nguyên nhân-kết quả
-                prompt.append("Yêu cầu: Chỉ nêu tối đa 3 nguyên nhân chính theo thứ tự quan trọng. " + // Thêm hướng dẫn cho câu hỏi về nguyên nhân-kết quả
-                        "Mỗi nguyên nhân cần ngắn gọn và súc tích. " +
-                        "KHÔNG giải thích quá chi tiết. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi liệt kê nguyên nhân.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi về nguyên nhân-kết quả
+            case CAUSE_EFFECT: // Câu hỏi nguyên nhân-kết quả (ví dụ: Tại sao X?)
+                // Hướng dẫn AI giải thích nguyên nhân một cách tự nhiên, tập trung vào lý do chính
+                prompt.append("Yêu cầu: Giải thích nguyên nhân một cách tự nhiên, như đang trò chuyện. " +
+                        "Tập trung vào những lý do chính yếu và trình bày một cách dễ hiểu. " +
+                        "Liên kết giữa nguyên nhân và kết quả một cách rõ ràng nhưng không quá học thuật.");
+                break;
 
-            case HISTORICAL: // Trường hợp câu hỏi về lịch sử
-                prompt.append("Yêu cầu: Trả lời ngắn gọn, chỉ nêu thông tin chính xác về bối cảnh lịch sử. " + // Thêm hướng dẫn cho câu hỏi về lịch sử
-                        "Nêu rõ thời gian, địa điểm, nhân vật liên quan (nếu có). " +
-                        "KHÔNG đi quá sâu vào chi tiết không cần thiết. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi trả lời.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi về lịch sử
+            case HISTORICAL: // Câu hỏi lịch sử (ví dụ: X bắt đầu từ đâu?)
+                // Hướng dẫn AI kể về thông tin lịch sử một cách cuốn hút nhưng vẫn đảm bảo tính chính xác
+                prompt.append("Yêu cầu: Kể về thông tin lịch sử một cách tự nhiên và cuốn hút. " +
+                        "Sử dụng ngôn ngữ kể chuyện nhưng vẫn đảm bảo tính chính xác. " +
+                        "Chú trọng vào các mốc thời gian và sự kiện quan trọng nhất.");
+                break;
 
-            case LISTING: // Trường hợp câu hỏi yêu cầu liệt kê
-                prompt.append("Yêu cầu: Liệt kê tối đa 5 mục chính theo thứ tự quan trọng. " + // Thêm hướng dẫn cho câu hỏi yêu cầu liệt kê
-                        "Mỗi mục cần ngắn gọn, súc tích và đi thẳng vào trọng tâm. " +
-                        "KHÔNG giải thích chi tiết từng mục. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi liệt kê.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi yêu cầu liệt kê
+            case LISTING: // Câu hỏi liệt kê (ví dụ: Liệt kê các loại X)
+                // Hướng dẫn AI liệt kê một cách tự nhiên, không cần đánh số cứng nhắc
+                prompt.append("Yêu cầu: Liệt kê các mục một cách tự nhiên, như đang gợi ý cho một người bạn. " +
+                        "Không cần đánh số cứng nhắc, có thể dùng cách nói chuyện tự nhiên để giới thiệu danh sách. " +
+                        "Giữ nội dung ngắn gọn nhưng đầy đủ thông tin.");
+                break;
 
-            case EXAMPLES: // Trường hợp câu hỏi yêu cầu ví dụ
-                prompt.append("Yêu cầu: Cung cấp tối đa 3 ví dụ cụ thể, đa dạng và tiêu biểu nhất. " + // Thêm hướng dẫn cho câu hỏi yêu cầu ví dụ
-                        "Mỗi ví dụ cần ngắn gọn và rõ ràng. " +
-                        "KHÔNG giải thích dài dòng cho từng ví dụ. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi đưa ra ví dụ.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi yêu cầu ví dụ
+            case EXAMPLES: // Câu hỏi yêu cầu ví dụ (ví dụ: Cho ví dụ về X)
+                // Hướng dẫn AI đưa ra ví dụ một cách tự nhiên, sử dụng ngôn ngữ hội thoại
+                prompt.append("Yêu cầu: Đưa ra ví dụ một cách tự nhiên, như đang minh họa cho người nghe. " +
+                        "Sử dụng ngôn ngữ hội thoại và ví dụ thực tế, dễ hiểu. " +
+                        "Ví dụ nên cụ thể và liên quan trực tiếp đến chủ đề.");
+                break;
 
-            case WHO_WHAT: // Trường hợp câu hỏi về ai/cái gì
-                prompt.append("Yêu cầu: Trả lời chính xác và ngắn gọn trong 1-2 câu. " + // Thêm hướng dẫn cho câu hỏi về ai/cái gì
-                        "Nêu thông tin cốt lõi chính xác về đối tượng được hỏi. " +
-                        "KHÔNG đưa ra thông tin phụ không liên quan. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi trả lời.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi về ai/cái gì
+            case WHO_WHAT: // Câu hỏi về ai/cái gì (ví dụ: Ai là X?)
+                // Hướng dẫn AI trả lời câu hỏi về đối tượng một cách tự nhiên, dùng ngôn ngữ đời thường
+                prompt.append("Yêu cầu: Trả lời một cách tự nhiên về đối tượng được hỏi. " +
+                        "Dùng ngôn ngữ đời thường nhưng vẫn đảm bảo tính chính xác. " +
+                        "Cung cấp thông tin cốt lõi mà không quá khô khan hay học thuật.");
+                break;
 
-            case ANALYSIS: // Trường hợp câu hỏi phân tích
-                prompt.append("Yêu cầu: Trả lời ngắn gọn, cân bằng giữa ưu điểm và nhược điểm (nếu có). " + // Thêm hướng dẫn cho câu hỏi phân tích
-                        "Chỉ tập trung vào 2-3 điểm phân tích quan trọng nhất. " +
-                        "KHÔNG đi quá sâu vào chi tiết. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi phân tích.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi phân tích
+            case ANALYSIS: // Câu hỏi phân tích (ví dụ: Phân tích X)
+                // Hướng dẫn AI phân tích một cách tự nhiên, cân bằng giữa các khía cạnh
+                prompt.append("Yêu cầu: Phân tích một cách tự nhiên, cân bằng giữa các khía cạnh. " +
+                        "Dùng ngôn ngữ trò chuyện nhưng vẫn sắc bén trong phân tích. " +
+                        "Đưa ra nhận xét như một chuyên gia đang giải thích cho người mới.");
+                break;
 
-            case GENERAL: // Trường hợp câu hỏi chung/mặc định
-            default: // Trường hợp mặc định
-                prompt.append("Yêu cầu: Trả lời ngắn gọn, súc tích trong 1-3 câu tập trung vào trọng tâm câu hỏi. " + // Thêm hướng dẫn cho câu hỏi chung
-                        "KHÔNG đưa ra thông tin phụ không cần thiết. " +
-                        "KHÔNG giới thiệu câu trả lời. " +
-                        "KHÔNG kết luận lại sau khi trả lời.");
-                break; // Kết thúc xử lý cho trường hợp câu hỏi chung
+            case GENERAL: // Câu hỏi chung (không thuộc các loại trên)
+            default:
+                // Hướng dẫn AI trả lời câu hỏi chung một cách tự nhiên, như đang trò chuyện
+                prompt.append("Yêu cầu: Trả lời một cách tự nhiên, như đang trò chuyện. " +
+                        "Sử dụng ngôn ngữ đời thường nhưng vẫn đảm bảo tính chính xác và súc tích. " +
+                        "Giải thích như đang nói chuyện với một người bạn hoặc đồng nghiệp.");
+                break;
         }
 
-        // Thêm yêu cầu chung cho tất cả các loại câu trả lời
-        prompt.append("\n\nQuy tắc bắt buộc: Đi thẳng vào nội dung câu trả lời. KHÔNG bắt đầu bằng 'Câu trả lời là', " + // Thêm các quy tắc chung cho tất cả các loại câu hỏi
-                "'Dưới đây là', 'Tóm lại', v.v. Trả lời bằng tiếng Việt có dấu, đúng ngữ pháp và dễ hiểu.");
+        // Thêm các quy tắc chung áp dụng cho tất cả các loại câu hỏi
+        // Nhấn mạnh vào yêu cầu về ngôn ngữ tự nhiên, tránh sự máy móc, học thuật
+        prompt.append("\n\nQuy tắc chung: Hãy trả lời bằng ngôn ngữ tự nhiên, như trong một cuộc trò chuyện. " +
+                "Sử dụng tiếng Việt có dấu, đúng ngữ pháp. Câu trả lời nên ngắn gọn nhưng đầy đủ và dễ hiểu. " +
+                "Tránh cách trả lời quá học thuật hoặc máy móc.");
 
-        return prompt.toString(); // Trả về chuỗi prompt hoàn chỉnh
+        // Trả về prompt hoàn chỉnh để gửi đến AI
+        return prompt.toString();
     }
 
     /**
