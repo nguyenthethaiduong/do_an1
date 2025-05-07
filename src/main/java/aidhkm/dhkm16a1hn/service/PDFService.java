@@ -29,7 +29,7 @@ public class PDFService {
     private static final int MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
     private static final String PDF_CONTENT_TYPE = "application/pdf";
     
-    private final Path uploadDir = Paths.get("pdf-uploads");
+    private final Path uploadDir;
     
     @Autowired
     private VectorService vectorService;
@@ -44,6 +44,17 @@ public class PDFService {
     private FileProcessingService fileProcessingService;
 
     public PDFService() {
+        String uploadDirPath = System.getenv("UPLOAD_DIR");
+        if (uploadDirPath == null || uploadDirPath.isEmpty()) {
+            // Sử dụng thư mục tạm thời của hệ thống nếu không có biến môi trường
+            uploadDir = Paths.get(System.getProperty("java.io.tmpdir"), "pdf-uploads");
+            logger.info("Using temporary directory for PDF uploads: " + uploadDir);
+        } else {
+            // Sử dụng đường dẫn từ biến môi trường
+            uploadDir = Paths.get(uploadDirPath, "pdf-uploads");
+            logger.info("Using configured directory for PDF uploads: " + uploadDir);
+        }
+        
         try {
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);

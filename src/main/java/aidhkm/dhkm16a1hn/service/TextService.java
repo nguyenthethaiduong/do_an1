@@ -32,7 +32,7 @@ public class TextService {
     private static final int MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
     private static final String TXT_CONTENT_TYPE = "text/plain";
     
-    private final Path uploadDir = Paths.get("txt-uploads");
+    private final Path uploadDir;
     
     @Autowired
     private VectorService vectorService;
@@ -51,6 +51,17 @@ public class TextService {
      * Khởi tạo thư mục lưu trữ file nếu chưa tồn tại
      */
     public TextService() {
+        String uploadDirPath = System.getenv("UPLOAD_DIR");
+        if (uploadDirPath == null || uploadDirPath.isEmpty()) {
+            // Sử dụng thư mục tạm thời của hệ thống nếu không có biến môi trường
+            uploadDir = Paths.get(System.getProperty("java.io.tmpdir"), "txt-uploads");
+            logger.info("Using temporary directory for TXT uploads: " + uploadDir);
+        } else {
+            // Sử dụng đường dẫn từ biến môi trường
+            uploadDir = Paths.get(uploadDirPath, "txt-uploads");
+            logger.info("Using configured directory for TXT uploads: " + uploadDir);
+        }
+        
         try {
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
