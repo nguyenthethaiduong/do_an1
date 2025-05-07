@@ -88,7 +88,9 @@ public class TrainingController {
      */
     @PostMapping("/upload-file")
     public String uploadFile(@RequestParam("file") MultipartFile[] files, @RequestParam String name, Model model) {
+        logger.info("============= UPLOAD REQUEST STARTED ===============");
         logger.info("File upload request received with " + files.length + " files");
+        logger.info("Name parameter: " + name);
         
         try {
             if (files.length == 0 || files[0].isEmpty()) {
@@ -97,6 +99,16 @@ public class TrainingController {
                 return "upload";
             }
 
+            // Log database connection info
+            try {
+                logger.info("Checking database connection before processing");
+                boolean dbExists = documentRepository.count() >= 0;
+                logger.info("Database connection check: " + (dbExists ? "SUCCESS" : "FAILED"));
+            } catch (Exception e) {
+                logger.severe("Database connection check failed: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
             int successCount = 0;
             StringBuilder errors = new StringBuilder();
 
@@ -127,6 +139,12 @@ public class TrainingController {
                         logger.info("Reading content from text file: " + originalFilename);
                         content = readTextFile(file);
                         logger.info("Successfully read " + (content != null ? content.length() : 0) + " characters from file");
+                        
+                        // Log sample content for debugging
+                        if (content != null && content.length() > 0) {
+                            logger.info("Content sample (first 100 chars): " + 
+                                      content.substring(0, Math.min(content.length(), 100)));
+                        }
                     } else {
                         // Với các loại file khác, hiển thị thông báo lỗi tạm thời
                         String errorMsg = "Loại file " + fileExtension + " chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file TXT.";
@@ -138,12 +156,18 @@ public class TrainingController {
                     if (content != null && !content.trim().isEmpty()) {
                         logger.info("Saving document to database: " + documentName);
                         try {
-                            trainingService.saveDocument(documentName, content);
-                            logger.info("Document saved successfully: " + documentName);
-                            successCount++;
+                            Document savedDoc = trainingService.saveDocument(documentName, content);
+                            if (savedDoc != null && savedDoc.getId() != null) {
+                                logger.info("Document saved successfully: " + documentName + " with ID: " + savedDoc.getId());
+                                successCount++;
+                            } else {
+                                logger.severe("Document was not saved properly, returned null or no ID");
+                                errors.append("Lỗi khi lưu tài liệu " + originalFilename + ": Không thể lưu vào database").append("\n");
+                            }
                         } catch (Exception e) {
                             String errorMsg = "Lỗi khi lưu tài liệu " + originalFilename + ": " + e.getMessage();
                             logger.severe(errorMsg);
+                            logger.severe("Exception type: " + e.getClass().getName());
                             errors.append(errorMsg).append("\n");
                             e.printStackTrace();
                         }
@@ -157,6 +181,7 @@ public class TrainingController {
                     String errorMsg = "Lỗi khi xử lý file " + file.getOriginalFilename() + ": " + e.getMessage();
                     errors.append(errorMsg).append("\n");
                     logger.severe(errorMsg);
+                    logger.severe("Exception stack trace:");
                     e.printStackTrace();
                 }
             }
@@ -176,10 +201,13 @@ public class TrainingController {
                 logger.warning("Errors occurred during upload: " + errors.toString());
             }
             
+            logger.info("============= UPLOAD REQUEST COMPLETED ===============");
             return "upload";
         } catch (Exception e) {
             // Xử lý tất cả các lỗi không mong muốn
+            logger.severe("============= UPLOAD REQUEST FAILED ===============");
             logger.severe("Unexpected error during file upload: " + e.getMessage());
+            logger.severe("Exception type: " + e.getClass().getName());
             e.printStackTrace();
             model.addAttribute("error", "Đã xảy ra lỗi không mong muốn: " + e.getMessage());
             return "upload";

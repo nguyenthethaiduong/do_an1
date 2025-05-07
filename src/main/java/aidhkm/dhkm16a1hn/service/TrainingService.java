@@ -85,7 +85,7 @@ public class TrainingService { // Khai báo lớp dịch vụ huấn luyện
             // Tạo vector nhúng cho các đoạn văn bản theo lô
             logger.info("Starting to create vectors for document: " + name + " (ID: " + document.getId() + ")");
             try {
-                createVectorsInBatches(document.getId(), segments); // Gọi phương thức tạo vector theo lô với ID tài liệu và danh sách đoạn
+            createVectorsInBatches(document.getId(), segments); // Gọi phương thức tạo vector theo lô với ID tài liệu và danh sách đoạn
                 logger.info("Vectors created successfully for document: " + name);
             } catch (Exception e) {
                 logger.severe("Error creating vectors: " + e.getMessage());
@@ -103,83 +103,61 @@ public class TrainingService { // Khai báo lớp dịch vụ huấn luyện
 
     /**
      * Phân tách nội dung văn bản thành các đoạn nhỏ hơn
-     * Phương thức này sử dụng VertexAI để phân tách văn bản thành các câu riêng biệt,
-     * giúp tạo ra các đoạn có ý nghĩa cho việc tạo vector nhúng hiệu quả
+     * Phương thức này sử dụng phương pháp phân tách đơn giản dựa trên dấu câu,
+     * không phụ thuộc vào dịch vụ AI bên ngoài để tăng độ tin cậy
      * 
      * @param content Nội dung văn bản cần phân tách
      * @return Danh sách các đoạn văn bản đã được phân tách
      */
-    private List<String> splitContent(String content) { // Phương thức phân tách nội dung văn bản thành các đoạn
-        logger.info("Splitting content with length: " + content.length() + " characters");
-        
-        // Nếu nội dung quá dài, phân tách theo dòng hoặc câu đơn giản
-        if (content.length() > 5000) {
-            logger.info("Content too large for AI splitting, using simple method");
-            return splitContentSimple(content);
-        }
-        
-        // Sử dụng Vertex AI để phân đoạn văn bản với timeout
-        try {
-            String prompt = "Hãy phân đoạn văn bản sau thành các câu ngắn, mỗi câu trên một dòng:\n" + content; // Tạo prompt yêu cầu AI phân đoạn văn bản
-            logger.info("Calling Vertex AI to split content");
-            
-            // Đặt timeout 20 giây để tránh treo quá lâu
-            String response = vertexAIService.generateTextWithTimeout(prompt, 20); // Gọi dịch vụ AI để sinh văn bản phân đoạn
-            
-            if (response == null || response.trim().isEmpty()) {
-                logger.warning("Empty response from Vertex AI, using simple splitting");
-                return splitContentSimple(content);
-            }
-            
-            List<String> segments = Arrays.stream(response.split("\n")) // Phân tách kết quả thành các dòng dựa trên ký tự xuống dòng
-                    .filter(s -> !s.trim().isEmpty()) // Lọc bỏ các dòng rỗng
-                    .collect(Collectors.toList()); // Chuyển đổi luồng dữ liệu thành danh sách
-            
-            logger.info("Vertex AI returned " + segments.size() + " segments");
-            return segments;
-        } catch (Exception e) {
-            logger.warning("Error using Vertex AI for content splitting: " + e.getMessage() + ". Falling back to simple method.");
-            e.printStackTrace();
-            return splitContentSimple(content);
-        }
-    }
-    
-    /**
-     * Phân tách nội dung theo phương pháp đơn giản (fallback)
-     * Phương thức này được sử dụng khi Vertex AI không khả dụng 
-     * hoặc khi nội dung quá lớn
-     * 
-     * @param content Nội dung văn bản cần phân tách
-     * @return Danh sách các đoạn văn bản đã được phân tách
-     */
-    private List<String> splitContentSimple(String content) {
-        logger.info("Using simple content splitting method");
+    private List<String> splitContent(String content) {
+        logger.info("Splitting content with length: " + content.length() + " characters using simple method");
         List<String> segments = new ArrayList<>();
         
-        // Phân tách theo dòng trước
-        String[] lines = content.split("\n");
-        
-        for (String line : lines) {
-            if (line.trim().isEmpty()) {
-                continue;
+        try {
+            // Phân tách theo dòng trước
+            String[] lines = content.split("\n");
+            logger.info("Split content into " + lines.length + " lines");
+            
+            for (String line : lines) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+                
+                // Nếu dòng quá dài, phân tách thành các đoạn nhỏ hơn
+                if (line.length() > 200) {
+                    // Phân tách theo dấu chấm, chấm phẩy, chấm hỏi, chấm than
+                    String[] sentences = line.split("[.;!?]+");
+                    for (String sentence : sentences) {
+                        if (!sentence.trim().isEmpty()) {
+                            segments.add(sentence.trim());
+                        }
+                    }
+                } else {
+                    segments.add(line.trim());
+                }
             }
             
-            // Nếu dòng quá dài, phân tách thành các đoạn nhỏ hơn
-            if (line.length() > 200) {
-                // Phân tách theo dấu chấm hoặc dấu chấm phẩy
-                String[] sentences = line.split("[.;!?]+");
-                for (String sentence : sentences) {
-                    if (!sentence.trim().isEmpty()) {
-                        segments.add(sentence.trim());
-                    }
-                }
-            } else {
-                segments.add(line.trim());
+            logger.info("Simple splitting returned " + segments.size() + " segments");
+            
+            // Nếu không có đoạn nào, thêm nội dung gốc làm 1 đoạn
+            if (segments.isEmpty() && !content.trim().isEmpty()) {
+                logger.info("No segments created, adding original content as single segment");
+                segments.add(content.trim());
             }
+            
+            return segments;
+        } catch (Exception e) {
+            logger.severe("Error in simple content splitting: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Fallback: trả về một danh sách chứa toàn bộ nội dung
+            logger.info("Falling back to returning content as single segment");
+            List<String> fallback = new ArrayList<>();
+            if (!content.trim().isEmpty()) {
+                fallback.add(content.trim());
+            }
+            return fallback;
         }
-        
-        logger.info("Simple splitting returned " + segments.size() + " segments");
-        return segments;
     }
 
     /**

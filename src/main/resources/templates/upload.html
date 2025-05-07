@@ -602,14 +602,30 @@
                         progressBar.style.width = '100%';
                         progressBar.textContent = '100%';
                         loadingText.textContent = 'Đã tải lên xong, đang xử lý...';
+
+                        console.log('Response status:', response.status, 'OK:', response.ok);
+                        
+                        // Log response headers
+                        const headers = {};
+                        response.headers.forEach((value, key) => {
+                            headers[key] = value;
+                        });
+                        console.log('Response headers:', JSON.stringify(headers));
                         
                         if (response.ok) {
                             // Tải về thành công
                             loadingStatus.textContent = 'Tải lên thành công! Đang cập nhật trang...';
-                            return response.text();
+                            return response.text().then(text => {
+                                // Log response text for debugging
+                                console.log('Response preview (first 100 chars):', text.substring(0, 100));
+                                return text;
+                            });
                         } else {
                             // Xử lý lỗi HTTP
-                            throw new Error('Lỗi khi tải lên: ' + response.status);
+                            return response.text().then(text => {
+                                console.error('Error response body:', text);
+                                throw new Error('Lỗi khi tải lên: ' + response.status + ' - ' + text);
+                            });
                         }
                     })
                     .then(html => {
